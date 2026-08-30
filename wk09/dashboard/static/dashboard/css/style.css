@@ -160,3 +160,18 @@ canvas#cv {
 .val-loss { color: #f87171; }
 .val-acc { color: #4ade80; }
 .val-params { color: #fbbf24; font-size: 0.95rem; }
+
+.btn-primary {
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+}

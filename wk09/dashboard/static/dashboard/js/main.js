@@ -1,11 +1,16 @@
 // Student Info Management
 function loadStudentInfo() {
-    const savedId = localStorage.getItem('dl69_student_id');
-    const savedFirst = localStorage.getItem('dl69_student_first');
-    const savedLast = localStorage.getItem('dl69_student_last');
-    if (savedId) document.getElementById('studentId').textContent = savedId;
-    if (savedFirst) document.getElementById('studentFirstName').textContent = savedFirst;
-    if (savedLast) document.getElementById('studentLastName').textContent = savedLast;
+    const defaultId = "67114540116";
+    const defaultFirst = "ชานนท์";
+    const defaultLast = "สายแจ้";
+
+    const savedId = localStorage.getItem('dl69_student_id') || defaultId;
+    const savedFirst = localStorage.getItem('dl69_student_first') || defaultFirst;
+    const savedLast = localStorage.getItem('dl69_student_last') || defaultLast;
+
+    document.getElementById('studentId').textContent = savedId;
+    document.getElementById('studentFirstName').textContent = savedFirst;
+    document.getElementById('studentLastName').textContent = savedLast;
 }
 
 function editStudentInfo() {
@@ -31,25 +36,22 @@ const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 const CX = 200, S = 60;
 
-// ข้อมูลจำลอง (Seed เดียวกับ Backend)
-const pts = [];
-function randn() {
-    let u = 0, v = 0;
-    while (!u) u = Math.random();
-    v = Math.random();
-    return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283 * v);
-}
-
-for (let i = 0; i < 200; i++) {
-    const x = randn(), y = randn();
-    pts.push({ x, y, l: (x * 1.5 + y - 0.5) > 0 ? 1 : 0 });
-}
+// รับจุดข้อมูลจาก Backend PyTorch
+let pts = [];
 
 function draw(s) {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, 400, 400);
 
-    // วาดจุดข้อมูล (Class 1 = เขียว, Class 0 = แดง)
+    // วาดแกน Grid อ่อนๆ
+    ctx.strokeStyle = '#27273f';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(CX, 0); ctx.lineTo(CX, 400);
+    ctx.moveTo(0, CX); ctx.lineTo(400, CX);
+    ctx.stroke();
+
+    // วาดจุดข้อมูลจริงที่สร้างจาก PyTorch (Class 1 = เขียว, Class 0 = แดง)
     for (const p of pts) {
         ctx.beginPath();
         ctx.arc(CX + p.x * S, CX - p.y * S, 3.5, 0, 6.283);
@@ -57,53 +59,78 @@ function draw(s) {
         ctx.fill();
     }
 
-    // วาด Decision Boundary Line: w0*x + w1*y + b = 0
-    if (s.w && s.w[1] !== 0) {
+    // วาดเส้นแบ่ง Decision Boundary: w0*x + w1*y + b = 0 => y = -(w0*x + b)/w1
+    if (s && s.w && s.w[1] !== 0) {
         ctx.beginPath();
-        ctx.moveTo(0, CX - (-(s.w[0] * (-3) + s.b) / s.w[1]) * S);
-        ctx.lineTo(400, CX - (-(s.w[0] * (3) + s.b) / s.w[1]) * S);
+        const y1 = -(s.w[0] * (-3.5) + s.b) / s.w[1];
+        const y2 = -(s.w[0] * (3.5) + s.b) / s.w[1];
+        ctx.moveTo(0, CX - y1 * S);
+        ctx.lineTo(400, CX - y2 * S);
         ctx.strokeStyle = '#fbbf24';
         ctx.lineWidth = 2.5;
         ctx.stroke();
     }
 
-    // อัปเดตตัวเลขแสดงผล Realtime
-    if (document.getElementById('metricEpoch')) {
-        document.getElementById('metricEpoch').textContent = s.epoch;
-        document.getElementById('metricLoss').textContent = s.loss.toFixed(4);
-        document.getElementById('metricAcc').textContent = (s.acc * 100).toFixed(1) + '%';
-        if (s.w) {
-            document.getElementById('metricParams').textContent = `w: [${s.w[0]}, ${s.w[1]}] | b: ${s.b}`;
+    // อัปเดตตัวเลขสถานะแบบ Realtime
+    if (s && s.epoch !== undefined) {
+        if (document.getElementById('metricEpoch')) {
+            document.getElementById('metricEpoch').textContent = `${s.epoch} / ${s.total_epochs || 200}`;
+            document.getElementById('metricLoss').textContent = s.loss.toFixed(4);
+            document.getElementById('metricAcc').textContent = (s.acc * 100).toFixed(1) + '%';
+            if (s.w) {
+                document.getElementById('metricParams').textContent = `w: [${s.w[0]}, ${s.w[1]}] | b: ${s.b}`;
+            }
         }
-    }
 
-    // อัปเดต text รวม
-    if (document.getElementById('info')) {
-        document.getElementById('info').textContent =
-            `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc * 100).toFixed(0)}%`;
+        if (document.getElementById('info')) {
+            document.getElementById('info').textContent =
+                `Epoch ${s.epoch} / ${s.total_epochs || 200} | Loss: ${s.loss.toFixed(4)} | Accuracy: ${(s.acc * 100).toFixed(1)}%`;
+        }
     }
 }
 
-// Initial Canvas Draw
-draw({ epoch: 0, loss: 0, acc: 0, w: [0, 0], b: 0 });
+// EventSource stream management
+let es = null;
 
-// Server-Sent Events (SSE) stream
-const es = new EventSource('/api/train/');
-es.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    draw(data);
-};
+function connectSSE() {
+    if (es) {
+        es.close();
+    }
 
-es.onerror = () => {
-    es.close();
     const badge = document.getElementById('statusBadge');
     if (badge) {
-        badge.textContent = '✓ Training Completed';
-        badge.style.borderColor = '#10b981';
-        badge.style.color = '#34d399';
+        badge.textContent = '⚡ กำลังเทรนโมเดลสด...';
+        badge.style.borderColor = '#3b82f6';
+        badge.style.color = '#60a5fa';
     }
-};
+
+    es = new EventSource('/api/train/');
+    
+    es.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'init') {
+            pts = data.points || [];
+            draw({ epoch: 0, loss: 0, acc: 0, w: [0, 0], b: 0 });
+        } else if (data.type === 'epoch' || data.epoch !== undefined) {
+            draw(data);
+        }
+    };
+
+    es.onerror = () => {
+        es.close();
+        if (badge) {
+            badge.textContent = '✓ การฝึกสอนเสร็จสมบูรณ์ (Completed)';
+            badge.style.borderColor = '#10b981';
+            badge.style.color = '#34d399';
+        }
+    };
+}
+
+function restartTraining() {
+    connectSSE();
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     loadStudentInfo();
+    connectSSE();
 });

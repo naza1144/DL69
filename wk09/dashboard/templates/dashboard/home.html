@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DL69 Week 09 - Realtime PyTorch Training</title>
+    <title>DL69 Week 09 - Realtime PyTorch Training Dashboard</title>
     <link rel="stylesheet" href="{% static 'dashboard/css/style.css' %}">
 </head>
 <body>
@@ -14,15 +14,15 @@
             <div class="student-info-group">
                 <div class="info-item">
                     <span class="info-label">รหัสนักศึกษา (Student ID)</span>
-                    <span class="info-value" id="studentId">65010001</span>
+                    <span class="info-value" id="studentId">67114540116</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">ชื่อ (First Name)</span>
-                    <span class="info-value" id="studentFirstName">นิติพัฒน์</span>
+                    <span class="info-value" id="studentFirstName">ชานนท์</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">สกุล (Last Name)</span>
-                    <span class="info-value" id="studentLastName">มีสุข</span>
+                    <span class="info-value" id="studentLastName">สายแจ้</span>
                 </div>
             </div>
             <div>
@@ -34,7 +34,12 @@
         <main class="dashboard-card">
             <div class="dashboard-title">
                 <span>🎯 Real-time PyTorch Training Visualizer</span>
-                <span id="statusBadge" class="status-badge">⚡ Realtime Training</span>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <button id="btnRestart" class="btn-primary" onclick="restartTraining()" style="padding: 6px 14px; font-size: 0.85rem;">
+                        🔄 เทรนใหม่ (Train Again)
+                    </button>
+                    <span id="statusBadge" class="status-badge">⚡ Realtime Training</span>
+                </div>
             </div>
 
             <!-- Canvas แสดงจุดข้อมูลและการแยกคลาส Decision Boundary -->
@@ -44,7 +49,7 @@
             <div class="metrics-box">
                 <div class="metric-col">
                     <span class="metric-name">Epoch</span>
-                    <span class="metric-val val-epoch" id="metricEpoch">0</span>
+                    <span class="metric-val val-epoch" id="metricEpoch">0 / 200</span>
                 </div>
                 <div class="metric-col">
                     <span class="metric-name">Loss (BCELoss)</span>
