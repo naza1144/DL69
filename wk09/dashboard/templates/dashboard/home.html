@@ -4,72 +4,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DL69 Week 09 - Realtime PyTorch Training Dashboard</title>
+    <title>DL69 Week 09</title>
     <link rel="stylesheet" href="{% static 'dashboard/css/style.css' %}">
 </head>
 <body>
     <div class="container">
-        <!-- ข้อมูลนักศึกษา (Student Info Header) -->
-        <header class="student-header">
-            <div class="student-info-group">
-                <div class="info-item">
-                    <span class="info-label">รหัสนักศึกษา (Student ID)</span>
-                    <span class="info-value" id="studentId">67114540116</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">ชื่อ (First Name)</span>
-                    <span class="info-value" id="studentFirstName">ชานนท์</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">สกุล (Last Name)</span>
-                    <span class="info-value" id="studentLastName">สายแจ้</span>
-                </div>
-            </div>
-            <div>
-                <button class="btn-edit" onclick="editStudentInfo()">✏️ แก้ไขข้อมูล</button>
-            </div>
-        </header>
+        <div class="header">
+            <span>รหัสนักศึกษา: <strong id="studentId">67114540116</strong></span>
+            <span>ชื่อ-นามสกุล: <strong id="studentName">ชานนท์ สายแจ้</strong></span>
+        </div>
 
-        <!-- Dashboard แสดงการ Train Realtime -->
-        <main class="dashboard-card">
-            <div class="dashboard-title">
-                <span>🎯 Real-time PyTorch Training Visualizer</span>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <button id="btnRestart" class="btn-primary" onclick="restartTraining()" style="padding: 6px 14px; font-size: 0.85rem;">
-                        🔄 เทรนใหม่ (Train Again)
-                    </button>
-                    <span id="statusBadge" class="status-badge">⚡ Realtime Training</span>
-                </div>
-            </div>
-
-            <!-- Canvas แสดงจุดข้อมูลและการแยกคลาส Decision Boundary -->
+        <div class="canvas-wrapper">
             <canvas id="cv" width="400" height="400"></canvas>
+        </div>
 
-            <!-- กล่องแสดงตัวเลขสถานะแต่ละ Epoch -->
-            <div class="metrics-box">
-                <div class="metric-col">
-                    <span class="metric-name">Epoch</span>
-                    <span class="metric-val val-epoch" id="metricEpoch">0 / 200</span>
-                </div>
-                <div class="metric-col">
-                    <span class="metric-name">Loss (BCELoss)</span>
-                    <span class="metric-val val-loss" id="metricLoss">0.0000</span>
-                </div>
-                <div class="metric-col">
-                    <span class="metric-name">Accuracy</span>
-                    <span class="metric-val val-acc" id="metricAcc">0.0%</span>
-                </div>
-                <div class="metric-col">
-                    <span class="metric-name">Weights & Bias</span>
-                    <span class="metric-val val-params" id="metricParams">w: [0, 0] | b: 0</span>
-                </div>
-            </div>
-
-            <div id="info" style="color: var(--text-muted); font-size: 0.9rem;"></div>
-        </main>
+        <div id="info" class="info-text">epoch 0 | loss 0 | acc 0%</div>
     </div>
 
-    <!-- JavaScript สำหรับ Realtime SSE และ Canvas Drawing -->
     <script src="{% static 'dashboard/js/main.js' %}"></script>
 </body>
 </html>
