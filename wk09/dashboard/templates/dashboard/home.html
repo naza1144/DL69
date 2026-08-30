@@ -1,0 +1,34 @@
+<canvas id="cv" width="400" height="400"></canvas>
+<div id="info"></div>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const CX = 200, S = 60;
+
+// ข้อมูล (seed เดียวกับ backend)
+const pts = [];
+function randn(){let u=0,v=0;while(!u)u=Math.random();
+  v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(6.283*v)}
+for(let i=0;i<200;i++){
+  const x=randn(),y=randn();
+  pts.push({x,y,l:(x*1.5+y-0.5)>0?1:0})}
+
+function draw(s){
+  ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,400,400);
+  for(const p of pts){
+    ctx.beginPath();
+    ctx.arc(CX+p.x*S, CX-p.y*S, 3, 0, 6.283);
+    ctx.fillStyle=p.l?'#4ade80':'#f87171'; ctx.fill();}
+  if(s.w && s.w[1]!==0){
+    ctx.beginPath();
+    ctx.moveTo(0,  CX-(-(s.w[0]*(-3)+s.b)/s.w[1])*S);
+    ctx.lineTo(400,CX-(-(s.w[0]*( 3)+s.b)/s.w[1])*S);
+    ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2; ctx.stroke();}
+  document.getElementById('info').textContent=
+    `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc*100).toFixed(0)}%`;}
+
+// EventSource = browser API สำหรับรับ SSE stream
+const es = new EventSource('/api/train/');
+es.onmessage = (e) => draw(JSON.parse(e.data));
+es.onerror   = () => es.close();  // จบ stream → ปิด
+</script>
