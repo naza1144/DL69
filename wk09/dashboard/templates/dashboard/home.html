@@ -1,34 +1,70 @@
-<canvas id="cv" width="400" height="400"></canvas>
-<div id="info"></div>
-<script>
-const cv = document.getElementById('cv');
-const ctx = cv.getContext('2d');
-const CX = 200, S = 60;
+{% load static %}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DL69 Week 09 - Realtime PyTorch Training</title>
+    <link rel="stylesheet" href="{% static 'dashboard/css/style.css' %}">
+</head>
+<body>
+    <div class="container">
+        <!-- ข้อมูลนักศึกษา (Student Info Header) -->
+        <header class="student-header">
+            <div class="student-info-group">
+                <div class="info-item">
+                    <span class="info-label">รหัสนักศึกษา (Student ID)</span>
+                    <span class="info-value" id="studentId">65010001</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">ชื่อ (First Name)</span>
+                    <span class="info-value" id="studentFirstName">นิติพัฒน์</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">สกุล (Last Name)</span>
+                    <span class="info-value" id="studentLastName">มีสุข</span>
+                </div>
+            </div>
+            <div>
+                <button class="btn-edit" onclick="editStudentInfo()">✏️ แก้ไขข้อมูล</button>
+            </div>
+        </header>
 
-// ข้อมูล (seed เดียวกับ backend)
-const pts = [];
-function randn(){let u=0,v=0;while(!u)u=Math.random();
-  v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(6.283*v)}
-for(let i=0;i<200;i++){
-  const x=randn(),y=randn();
-  pts.push({x,y,l:(x*1.5+y-0.5)>0?1:0})}
+        <!-- Dashboard แสดงการ Train Realtime -->
+        <main class="dashboard-card">
+            <div class="dashboard-title">
+                <span>🎯 Real-time PyTorch Training Visualizer</span>
+                <span id="statusBadge" class="status-badge">⚡ Realtime Training</span>
+            </div>
 
-function draw(s){
-  ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,400,400);
-  for(const p of pts){
-    ctx.beginPath();
-    ctx.arc(CX+p.x*S, CX-p.y*S, 3, 0, 6.283);
-    ctx.fillStyle=p.l?'#4ade80':'#f87171'; ctx.fill();}
-  if(s.w && s.w[1]!==0){
-    ctx.beginPath();
-    ctx.moveTo(0,  CX-(-(s.w[0]*(-3)+s.b)/s.w[1])*S);
-    ctx.lineTo(400,CX-(-(s.w[0]*( 3)+s.b)/s.w[1])*S);
-    ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2; ctx.stroke();}
-  document.getElementById('info').textContent=
-    `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc*100).toFixed(0)}%`;}
+            <!-- Canvas แสดงจุดข้อมูลและการแยกคลาส Decision Boundary -->
+            <canvas id="cv" width="400" height="400"></canvas>
 
-// EventSource = browser API สำหรับรับ SSE stream
-const es = new EventSource('/api/train/');
-es.onmessage = (e) => draw(JSON.parse(e.data));
-es.onerror   = () => es.close();  // จบ stream → ปิด
-</script>
+            <!-- กล่องแสดงตัวเลขสถานะแต่ละ Epoch -->
+            <div class="metrics-box">
+                <div class="metric-col">
+                    <span class="metric-name">Epoch</span>
+                    <span class="metric-val val-epoch" id="metricEpoch">0</span>
+                </div>
+                <div class="metric-col">
+                    <span class="metric-name">Loss (BCELoss)</span>
+                    <span class="metric-val val-loss" id="metricLoss">0.0000</span>
+                </div>
+                <div class="metric-col">
+                    <span class="metric-name">Accuracy</span>
+                    <span class="metric-val val-acc" id="metricAcc">0.0%</span>
+                </div>
+                <div class="metric-col">
+                    <span class="metric-name">Weights & Bias</span>
+                    <span class="metric-val val-params" id="metricParams">w: [0, 0] | b: 0</span>
+                </div>
+            </div>
+
+            <div id="info" style="color: var(--text-muted); font-size: 0.9rem;"></div>
+        </main>
+    </div>
+
+    <!-- JavaScript สำหรับ Realtime SSE และ Canvas Drawing -->
+    <script src="{% static 'dashboard/js/main.js' %}"></script>
+</body>
+</html>
