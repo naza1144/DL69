@@ -27,25 +27,8 @@ def train(request):
             'points': points
         }) + "\n\n"
 
-        # callback สำหรับแต่ละ epoch
-        def on_epoch(epoch, loss_val, acc_val, w_val, b_val, lr_res):
-            data = json.dumps({
-                'type': 'epoch',
-                'epoch': epoch,
-                'total_epochs': 200,
-                'loss': loss_val,
-                'accuracy': acc_val,
-                'acc': acc_val,
-                'w': w_val,
-                'b': b_val,
-                'lr_results': lr_res
-            })
-            time.sleep(0.04)  # delay ให้รับผลสดทัน
-            return data
-
-        # รันการฝึกสอน Perceptron ด้วยมือ
         epoch_data_list = []
-        def callback_fn(epoch, loss_val, acc_val, w_val, b_val, lr_res):
+        def callback_fn(epoch, loss_val, acc_val, w_val=None, b_val=None, lr_res=None):
             payload = json.dumps({
                 'type': 'epoch',
                 'epoch': epoch,
@@ -53,13 +36,13 @@ def train(request):
                 'loss': loss_val,
                 'accuracy': acc_val,
                 'acc': acc_val,
-                'w': w_val,
-                'b': b_val,
+                'w': w_val if w_val is not None else [0, 0],
+                'b': b_val if b_val is not None else 0,
                 'lr_results': lr_res
             })
             epoch_data_list.append(payload)
 
-        # เรียก ml/train.py
+        # เรียก ml/train.py (manual weight update)
         model, lr_results = ml_train(on_progress=callback_fn, num_epochs=200, main_lr=0.1)
 
         for payload in epoch_data_list:

@@ -1,4 +1,5 @@
 import os
+import inspect
 import torch
 import torch.nn as nn
 import matplotlib
@@ -33,7 +34,7 @@ def run_single_train(lr, num_epochs=200):
         # Backward pass
         loss.backward()
 
-        # Update weights (ด้วยมือ)
+        # Update weights ด้วยมือ (ไม่ใช้ optimizer)
         with torch.no_grad():
             for p in model.parameters():
                 p -= lr * p.grad
@@ -47,9 +48,10 @@ def run_single_train(lr, num_epochs=200):
 
 def train(on_progress=None, num_epochs=200, main_lr=0.1):
     """
-    1. ฝึกสอนโมเดลหลักสำหรับ SSE Realtime Display (Manual Weight Update)
+    1. ฝึกสอนโมเดลหลักด้วยมือ (Manual Weight Update)
     2. ทดลอง 3 Learning Rates (0.001, 0.1, 1.0)
     3. บันทึก loss_curve.png ไปยัง static/dashboard/loss_curve.png
+    4. เรียก on_progress(epoch, loss, acc) ทุก epoch
     """
     X, y = make_data(42)
     torch.manual_seed(42)
@@ -59,7 +61,7 @@ def train(on_progress=None, num_epochs=200, main_lr=0.1):
     )
     loss_fn = nn.BCELoss()
 
-    # ทดลอง 3 Learning Rates สำหรับตารางเปรียบเทียบ
+    # 1. ทดลอง 3 Learning Rates (0.001, 0.1, 1.0)
     lrs = [0.001, 0.1, 1.0]
     lr_results = {}
     for l_rate in lrs:
@@ -71,7 +73,7 @@ def train(on_progress=None, num_epochs=200, main_lr=0.1):
             'losses': l_hist
         }
 
-    # บันทึก loss_curve.png
+    # 2. บันทึก loss_curve.png
     save_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'dashboard')
     os.makedirs(save_dir, exist_ok=True)
     img_path = os.path.join(save_dir, 'loss_curve.png')
@@ -88,7 +90,7 @@ def train(on_progress=None, num_epochs=200, main_lr=0.1):
     plt.savefig(img_path, dpi=150)
     plt.close()
 
-    # Training Loop สำหรับ Realtime SSE Display
+    # 3. Training Loop สำหรับโมเดลหลัก (Manual update)
     for epoch in range(num_epochs):
         y_hat = model(X)
         loss = loss_fn(y_hat, y)
@@ -106,7 +108,18 @@ def train(on_progress=None, num_epochs=200, main_lr=0.1):
         b = round(model[0].bias.data.item(), 4)
 
         if on_progress:
-            on_progress(epoch + 1, round(loss.item(), 4), round(acc, 4), w, b, lr_results)
+            try:
+                sig = inspect.signature(on_progress)
+                param_count = len(sig.parameters)
+                if param_count == 3:
+                    on_progress(epoch + 1, round(loss.item(), 4), round(acc, 4))
+                else:
+                    on_progress(epoch + 1, round(loss.item(), 4), round(acc, 4), w, b, lr_results)
+            except Exception:
+                try:
+                    on_progress(epoch + 1, round(loss.item(), 4), round(acc, 4))
+                except Exception:
+                    on_progress(epoch + 1, round(loss.item(), 4), round(acc, 4), w, b, lr_results)
 
     return model, lr_results
 
