@@ -1,5 +1,5 @@
 """
-URL configuration for wk9 project.
+URL configuration for wk09 project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/6.1/topics/http/urls/
@@ -18,6 +18,6 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path('', include('dashboard.urls')),
+    path('admin/', admin.site.urls),
 ]
