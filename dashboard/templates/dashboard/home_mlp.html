@@ -1,49 +1,309 @@
 <html>
 
 <head>
+  <style>
+    body {
+      background-color: #12131c;
+      color: #e2e8f0;
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    .canvas-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 15px;
+    }
+    canvas {
+      border: 1px solid #2a2b3d;
+      border-radius: 4px;
+    }
+    #info {
+      font-family: monospace;
+      font-size: 14px;
+      margin-bottom: 15px;
+      color: #cbd5e1;
+    }
+    #inference {
+      font-family: monospace;
+      font-size: 13px;
+      background: #181926;
+      padding: 12px;
+      border: 1px solid #2a2b3d;
+      border-radius: 4px;
+      max-width: 1240px;
+      color: #94a3b8;
+    }
+    .legend-box {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      display: flex;
+      gap: 15px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .line-indicator {
+      width: 16px;
+      height: 4px;
+      display: inline-block;
+      border-radius: 2px;
+    }
+  </style>
 </head>
 
 <body>
-  <canvas id="cv" width="400" height="400"></canvas>
-  <div id="info"></div>
-  <script>
-    const cv = document.getElementById('cv');
-    const ctx = cv.getContext('2d');
-    const CX = 200, S = 60;
 
-    // ข้อมูล (seed เดียวกับ backend)
-    const pts = [];
-    function randn() {
-      let u = 0, v = 0; while (!u) u = Math.random();
-      v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283 * v)
+  <div class="legend-box">
+    <div class="legend-item"><span class="line-indicator" style="background: linear-gradient(to right, #4ade80, #fbbf24, #f87171);"></span> Boundary P=0.5 (Multi-Color)</div>
+    <div class="legend-item"><span class="dot" style="background:#4ade80;"></span> Benign (Class 1)</div>
+    <div class="legend-item"><span class="dot" style="background:#f87171;"></span> Malignant (Class 0)</div>
+  </div>
+
+  <div class="canvas-container">
+    <div>
+      <div style="font-size: 12px; margin-bottom: 6px; color: #94a3b8;">1. Cartesian X-Y Axis Decision Boundary (แกน X-Y สมบูรณ์)</div>
+      <canvas id="cv_cartesian" width="400" height="400"></canvas>
+    </div>
+    <div>
+      <div style="font-size: 12px; margin-bottom: 6px; color: #94a3b8;">2. Training Loss Curve (BCELoss)</div>
+      <canvas id="cv_loss" width="400" height="400"></canvas>
+    </div>
+  </div>
+
+  <div id="info">Connecting to SSE...</div>
+  <div id="inference" style="display: none;"></div>
+
+  <script>
+    const cvC = document.getElementById('cv_cartesian');
+    const ctxC = cvC.getContext('2d');
+    const cvL = document.getElementById('cv_loss');
+    const ctxL = cvL.getContext('2d');
+
+    const CX = 200, CY = 200, S = 50;
+
+    // ฟังก์ชันวาดแกน X และ แกน Y สมบูรณ์พร้อมสเกลตัวเลขและลูกศร (Cartesian Coordinate Grid)
+    function drawCartesianAxes(ctx) {
+      // 1. วาดเส้นตารางพิกัดฉาก (Grid lines)
+      ctx.strokeStyle = '#1e2030';
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x <= 400; x += 25) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 400); ctx.stroke();
+      }
+      for (let y = 0; y <= 400; y += 25) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(400, y); ctx.stroke();
+      }
+
+      // 2. วาดแกนหลัก X และ แกน Y สีสว่างสลับหัวลูกศร
+      ctx.strokeStyle = '#3b82f6'; // แกนสีฟ้าสว่าง
+      ctx.lineWidth = 2;
+
+      // แกน X (แนวนอน)
+      ctx.beginPath(); ctx.moveTo(10, CY); ctx.lineTo(390, CY); ctx.stroke();
+      // หัวลูกศรแกน X
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath();
+      ctx.moveTo(390, CY - 5); ctx.lineTo(400, CY); ctx.lineTo(390, CY + 5); ctx.fill();
+
+      // แกน Y (แนวตั้ง)
+      ctx.beginPath(); ctx.moveTo(CX, 390); ctx.lineTo(CX, 10); ctx.stroke();
+      // หัวลูกศรแกน Y
+      ctx.beginPath();
+      ctx.moveTo(CX - 5, 10); ctx.lineTo(CX, 0); ctx.lineTo(CX + 5, 10); ctx.fill();
+
+      // 3. วาดตัวอักษรกำกับแกน X และ Y
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('X', 382, CY - 10);
+      ctx.fillText('Y', CX + 10, 16);
+
+      // 4. วาดสเกลขีดและตัวเลข (-3, -2, -1, 1, 2, 3)
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#94a3b8';
+      ctx.textAlign = 'center';
+
+      // สเกลแกน X
+      for (let val = -3; val <= 3; val++) {
+        if (val === 0) continue;
+        const px = CX + val * S;
+        ctx.beginPath(); ctx.moveTo(px, CY - 4); ctx.lineTo(px, CY + 4); ctx.stroke();
+        ctx.fillText(val, px, CY + 16);
+      }
+
+      // สเกลแกน Y
+      ctx.textAlign = 'right';
+      for (let val = -3; val <= 3; val++) {
+        if (val === 0) continue;
+        const py = CY - val * S;
+        ctx.beginPath(); ctx.moveTo(CX - 4, py); ctx.lineTo(CX + 4, py); ctx.stroke();
+        ctx.fillText(val, CX - 8, py + 3);
+      }
     }
-    for (let i = 0; i < 200; i++) {
-      const x = randn(), y = randn();
-      pts.push({ x, y, l: (x * 1.5 + y - 0.5) > 0 ? 1 : 0 })
+
+    // ฟังก์ชันวาดเส้นหลัก P = 0.5 ที่ตัดแบ่งระหว่างข้อมูล พร้อมแยกแสงสีตามฝั่ง 50/50
+    function drawMainBoundaryLineWithColors(ctx, grid, res) {
+      if (!grid || !res || res < 2) return;
+      
+      const cellW = 400 / (res - 1);
+      const cellH = 400 / (res - 1);
+
+      const segments = [];
+
+      for (let r = 0; r < res - 1; r++) {
+        for (let c = 0; c < res - 1; c++) {
+          const v0 = grid[r + 1][c] - 0.5;
+          const v1 = grid[r + 1][c + 1] - 0.5;
+          const v2 = grid[r][c + 1] - 0.5;
+          const v3 = grid[r][c] - 0.5;
+
+          const edges = [];
+
+          if (v0 * v1 <= 0 && v0 !== v1) {
+            const t = Math.abs(v0) / (Math.abs(v0) + Math.abs(v1));
+            edges.push({ x: (c + t) * cellW, y: (res - 1 - (r + 1)) * cellH });
+          }
+          if (v1 * v2 <= 0 && v1 !== v2) {
+            const t = Math.abs(v1) / (Math.abs(v1) + Math.abs(v2));
+            edges.push({ x: (c + 1) * cellW, y: (res - 1 - (r + 1 - t)) * cellH });
+          }
+          if (v2 * v3 <= 0 && v2 !== v3) {
+            const t = Math.abs(v3) / (Math.abs(v2) + Math.abs(v3));
+            edges.push({ x: (c + t) * cellW, y: (res - 1 - r) * cellH });
+          }
+          if (v3 * v0 <= 0 && v3 !== v0) {
+            const t = Math.abs(v3) / (Math.abs(v3) + Math.abs(v0));
+            edges.push({ x: c * cellW, y: (res - 1 - (r + t)) * cellH });
+          }
+
+          if (edges.length === 2) {
+            segments.push({ p1: edges[0], p2: edges[1] });
+          } else if (edges.length === 4) {
+            segments.push({ p1: edges[0], p2: edges[1] });
+            segments.push({ p1: edges[2], p2: edges[3] });
+          }
+        }
+      }
+
+      if (segments.length === 0) return;
+
+      ctx.save();
+      ctx.lineWidth = 3.5;
+
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        const midX = (seg.p1.x + seg.p2.x) / 2;
+        const midY = (seg.p1.y + seg.p2.y) / 2;
+
+        const ratio = Math.min(Math.max((midX + midY) / 800, 0), 1);
+        
+        if (ratio < 0.45) {
+          ctx.strokeStyle = '#4ade80'; // เขียวฝั่ง Class 1
+        } else if (ratio > 0.65) {
+          ctx.strokeStyle = '#f87171'; // แดงฝั่ง Class 0
+        } else {
+          ctx.strokeStyle = '#fbbf24'; // เหลืองช่วงกึ่งกลาง 50/50
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(seg.p1.x, seg.p1.y);
+        ctx.lineTo(seg.p2.x, seg.p2.y);
+        ctx.stroke();
+      }
+
+      ctx.restore();
     }
 
     function draw(s) {
-      console.log(s);
-      ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, 400, 400);
-      for (const p of pts) {
-        ctx.beginPath();
-        ctx.arc(CX + p.x * S, CX - p.y * S, 3, 0, 6.283);
-        ctx.fillStyle = p.l ? '#4ade80' : '#f87171'; ctx.fill();
+      // =========================================================================
+      // 1. วาด Cartesian X-Y Grid & Decision Boundary Canvas
+      // =========================================================================
+      ctxC.fillStyle = '#12131c';
+      ctxC.fillRect(0, 0, 400, 400);
+
+      // วาดตารางแกน X และ แกน Y สมบูรณ์
+      drawCartesianAxes(ctxC);
+
+      // วาดจุดข้อมูลผู้ป่วย (Benign=เขียว / Malignant=แดง)
+      if (s.pts) {
+        for (const p of s.pts) {
+          ctxC.beginPath();
+          ctxC.arc(CX + p.x * S, CY - p.y * S, 3.5, 0, 6.283);
+          ctxC.fillStyle = p.l ? '#4ade80' : '#f87171';
+          ctxC.fill();
+        }
       }
-      if (s.w && s.w[1] !== 0) {
-        ctx.beginPath();
-        ctx.moveTo(0, CX - (-(s.w[0] * (-3) + s.b) / s.w[1]) * S);
-        ctx.lineTo(400, CX - (-(s.w[0] * (3) + s.b) / s.w[1]) * S);
-        ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; ctx.stroke();
+
+      // วาดเส้นหลัก P = 0.5 ที่ตัดแบ่งบนแกน X-Y
+      if (s.grid && s.res) {
+        drawMainBoundaryLineWithColors(ctxC, s.grid, s.res);
       }
-      document.getElementById('info').textContent =
-        `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc * 100).toFixed(0)}%`;
+
+      // =========================================================================
+      // 2. วาด Real-time Loss Curve Canvas
+      // =========================================================================
+      ctxL.fillStyle = '#12131c';
+      ctxL.fillRect(0, 0, 400, 400);
+
+      ctxL.strokeStyle = '#252636';
+      ctxL.lineWidth = 1;
+      for (let y = 50; y < 400; y += 50) {
+        ctxL.beginPath(); ctxL.moveTo(0, y); ctxL.lineTo(400, y); ctxL.stroke();
+      }
+      for (let x = 50; x < 400; x += 50) {
+        ctxL.beginPath(); ctxL.moveTo(x, 0); ctxL.lineTo(x, 400); ctxL.stroke();
+      }
+
+      if (s.loss_history && s.loss_history.length > 0) {
+        const history = s.loss_history;
+        const total = s.total_epochs || 200;
+        const maxLoss = 0.7;
+
+        ctxL.beginPath();
+        for (let i = 0; i < history.length; i++) {
+          const x = (i / total) * 380 + 10;
+          const y = 390 - Math.min(history[i] / maxLoss, 1.0) * 370;
+          if (i === 0) ctxL.moveTo(x, y);
+          else ctxL.lineTo(x, y);
+        }
+        ctxL.strokeStyle = '#4ade80';
+        ctxL.lineWidth = 2.5;
+        ctxL.stroke();
+      }
+
+      // =========================================================================
+      // 3. ข้อมูลสถานะและผลทำนายจาก state_dict()
+      // =========================================================================
+      let text = `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc * 100).toFixed(0)}%`;
+      if (s.saved) {
+        text += ` | saved: ${s.saved_file}`;
+      }
+      document.getElementById('info').textContent = text;
+
+      if (s.saved && s.inference && s.inference.length > 0) {
+        const infDiv = document.getElementById('inference');
+        infDiv.style.display = 'block';
+        let html = '<b style="color:#e2e8f0;">[Model Loading Inference Test via torch.load("breast_cancer_mlp.pth")]</b><br><br>';
+        for (const item of s.inference) {
+          const status = item.correct ? '<span style="color:#4ade80;">[CORRECT]</span>' : '<span style="color:#f87171;">[WRONG]</span>';
+          html += `Sample ${item.sample}: True=${item.true_label} | Pred=${item.pred_label} (Prob=${(item.pred_prob*100).toFixed(1)}%) ${status}<br>`;
+        }
+        infDiv.innerHTML = html;
+      }
     }
 
-    // EventSource = browser API สำหรับรับ SSE stream
     const es = new EventSource('/api/train-mlp');
     es.onmessage = (e) => draw(JSON.parse(e.data));
-    es.onerror = () => es.close();  // จบ stream → ปิด
+    es.onerror = () => es.close();
   </script>
 </body>
 
