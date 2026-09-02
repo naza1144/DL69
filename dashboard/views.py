@@ -1,44 +1,34 @@
-from django.shortcuts import render
-from django.http import StreamingHttpResponse
+import json
+import time
+from time import sleep
 import torch
 import torch.nn as nn
-import json
-from time import sleep
+from django.shortcuts import render
+from django.http import StreamingHttpResponse
+
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
+# นำเข้าโมเดลจาก dashboard.dl.models มาใช้งานร่วมกันทั้งหมด
+from dashboard.dl.models import MyMLP, BreastCancerMLP
+
 
 def home(request):
+    """หน้า Dashboard สำหรับ Week 09 (Perceptron / XOR 2D)"""
     return render(request, 'dashboard/home.html')
 
 
 def home_mlp(request):
+    """หน้า Dashboard สำหรับ Week 10 (Multi-Layer Perceptron / Breast Cancer)"""
     return render(request, 'dashboard/home_mlp.html')
 
 
 def train_mlp(request):
-    # ==============================================================================
-    # คลาสโมเดล BreastCancerMLP ตามสเปกการบ้าน:
-    # Input 30 -> Hidden(16) -> ReLU -> Hidden(8) -> ReLU -> Output(1) -> Sigmoid
-    # ==============================================================================
-    class BreastCancerMLP(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.fc1 = nn.Linear(30, 16)
-            self.relu1 = nn.ReLU()
-            self.fc2 = nn.Linear(16, 8)
-            self.relu2 = nn.ReLU()
-            self.fc3 = nn.Linear(8, 1)
-            self.sigmoid = nn.Sigmoid()
-
-        def forward(self, x):
-            x = self.relu1(self.fc1(x))
-            x = self.relu2(self.fc2(x))
-            x = self.sigmoid(self.fc3(x))
-            return x
-
+    """
+    SSE Streaming Endpoint สำหรับการเทรน BreastCancerMLP (30D -> 2D PCA Contour Visualization)
+    """
     def generate():
         # 1. โหลดข้อมูล Breast Cancer (30 features)
         data = load_breast_cancer()
@@ -50,7 +40,7 @@ def train_mlp(request):
         )
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled  = scaler.transform(X_test)
+        X_test_scaled = scaler.transform(X_test)
 
         # ทำ PCA 2D สำหรับวาด Scatter 2D บน Canvas
         pca = PCA(n_components=2)
@@ -74,10 +64,10 @@ def train_mlp(request):
         # แปลงข้อมูลเป็น Tensors
         X_train_t = torch.tensor(X_train_scaled, dtype=torch.float32)
         y_train_t = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
-        X_test_t  = torch.tensor(X_test_scaled, dtype=torch.float32)
-        y_test_t  = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
+        X_test_t = torch.tensor(X_test_scaled, dtype=torch.float32)
+        y_test_t = torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
 
-        # 2. สร้างโมเดล, BCELoss, และ Adam Optimizer
+        # 2. เรียกใช้โมเดล BreastCancerMLP จาก dashboard.dl.models
         torch.manual_seed(42)
         model = BreastCancerMLP()
         loss_fn = nn.BCELoss()
@@ -98,7 +88,7 @@ def train_mlp(request):
 
             loss_history.append(round(loss.item(), 4))
 
-            # ประเมินผล Test Accuracy, Decision Boundary Grid, และ 1D Probability Predictions
+            # ประเมินผล Test Accuracy และ Decision Boundary Grid
             model.eval()
             with torch.no_grad():
                 test_preds = model(X_test_t)
@@ -109,7 +99,7 @@ def train_mlp(request):
             is_done = (ep == total_epochs)
             inference_results = []
 
-            # 4. เมื่อเทรนเสร็จ ให้บันทึก Weights และทดสอบโหลดมาทดลองใช้ทันที
+            # 4. เมื่อเทรนเสร็จ ให้บันทึก Weights และทดสอบโหลดมาทดลองใช้ผ่าน state_dict()
             if is_done:
                 torch.save(model.state_dict(), 'breast_cancer_mlp.pth')
 
@@ -132,7 +122,7 @@ def train_mlp(request):
                             "correct": (sample_preds[i] > 0.5) == (sample_targets[i] == 1)
                         })
 
-            # Yield SSE Stream (ส่ง train_probs สำหรับวาดกราฟที่ 3 แกน X-Y Separation)
+            # Yield SSE Stream
             yield "data: " + json.dumps(dict(
                 epoch=ep,
                 loss=round(loss.item(), 4),
@@ -152,30 +142,45 @@ def train_mlp(request):
 
     return StreamingHttpResponse(
         generate(),
-        content_type="text/event-stream")
+        content_type="text/event-stream"
+    )
 
 
 def train(request):
+    """
+    SSE Streaming Endpoint สำหรับการเทรน XOR 2D ด้วย MyMLP
+    """
     def generate():
         torch.manual_seed(42)
         X = torch.randn(200, 2)
         y = ((X[:, 0] * 1.5 + X[:, 1] - 0.5) > 0).float().unsqueeze(1)
-        model = torch.nn.Sequential(
-            torch.nn.Linear(2, 1), torch.nn.Sigmoid())
-        loss_fn = torch.nn.BCELoss()
+
+        # เรียกใช้โมเดล MyMLP จาก dashboard.dl.models
+        model = MyMLP(in_features=2, hidden_dim=4, out_features=1)
+        loss_fn = nn.BCELoss()
         opt = torch.optim.SGD(model.parameters(), lr=0.1)
+
         for ep in range(200):
             y_hat = model(X)
             loss = loss_fn(y_hat, y)
-            opt.zero_grad(); loss.backward(); opt.step()
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+
             sleep(0.05)
+            # ดึงค่าน้ำหนัก w และ b จาก layer แรก
+            w_params = model.network[0].weight.data.tolist()[0]
+            b_param = model.network[0].bias.data.item()
+
             yield "data: " + json.dumps(dict(
-                epoch=ep,
+                epoch=ep + 1,
                 loss=round(loss.item(), 4),
                 acc=round(((y_hat > 0.5).float() == y).float().mean().item(), 4),
-                w=[round(x, 4) for x in model[0].weight.data.tolist()[0]],
-                b=round(model[0].bias.data.item(), 4)
+                w=[round(x, 4) for x in w_params],
+                b=round(b_param, 4)
             )) + "\n\n"
+
     return StreamingHttpResponse(
         generate(),
-        content_type='text/event-stream')
+        content_type='text/event-stream'
+    )
