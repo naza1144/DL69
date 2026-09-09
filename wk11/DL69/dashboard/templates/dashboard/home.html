@@ -37,7 +37,7 @@
         ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; ctx.stroke();
       }
       document.getElementById('info').textContent =
-        `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc * 100).toFixed(0)}%`;
+        `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc * 100).toFixed(0)}% | bias: ${s.b} | weights: ${s.w}`;
     }
 
     // EventSource = browser API สำหรับรับ SSE stream

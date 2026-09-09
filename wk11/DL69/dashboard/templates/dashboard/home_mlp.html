@@ -1,0 +1,214 @@
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Breast Cancer MLP (wk10)</title>
+  <style>
+    body {
+      background-color: #12131c;
+      color: #e2e8f0;
+      font-family: sans-serif;
+      margin: 20px;
+    }
+
+    h3 {
+      font-size: 15px;
+      margin: 0 0 4px 0;
+    }
+
+    .sub {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 14px;
+    }
+
+    .charts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 15px;
+    }
+
+    canvas {
+      border: 1px solid #2a2b3d;
+      border-radius: 4px;
+      background: #12131c;
+    }
+
+    .cap {
+      font-size: 12px;
+      margin-bottom: 6px;
+      color: #94a3b8;
+    }
+
+    #info {
+      font-family: monospace;
+      font-size: 14px;
+      margin-bottom: 15px;
+      color: #cbd5e1;
+    }
+
+    .panel {
+      font-family: monospace;
+      font-size: 13px;
+      background: #181926;
+      padding: 12px;
+      border: 1px solid #2a2b3d;
+      border-radius: 4px;
+      max-width: 900px;
+      color: #94a3b8;
+      margin-bottom: 15px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h3>การบ้านสัปดาห์ที่ 10 — MLP สำหรับ Breast Cancer dataset</h3>
+  <div class="sub">
+    Input 30 features -&gt; Hidden(16) -&gt; ReLU -&gt; Hidden(8) -&gt; ReLU -&gt; Output(1) -&gt; Sigmoid
+    | Adam(lr=0.01) | BCELoss | บันทึก weights ด้วย state_dict()
+  </div>
+
+  <div class="charts">
+    <div>
+      <div class="cap">1. Loss Curve (BCELoss) — แกน X = epoch, แกน Y = loss</div>
+      <canvas id="cv_loss" width="460" height="320"></canvas>
+    </div>
+    <div>
+      <div class="cap">2. Test Accuracy — แกน X = epoch, แกน Y = accuracy</div>
+      <canvas id="cv_acc" width="460" height="320"></canvas>
+    </div>
+  </div>
+
+  <div id="info">Connecting to SSE...</div>
+  <div class="panel" id="arch" style="display:none;"></div>
+  <div class="panel" id="inference" style="display:none;"></div>
+
+  <script>
+    const ctxL = document.getElementById('cv_loss').getContext('2d');
+    const ctxA = document.getElementById('cv_acc').getContext('2d');
+
+    const W = 460, H = 320;
+    const PAD_L = 52, PAD_R = 14, PAD_T = 14, PAD_B = 34;
+    const PW = W - PAD_L - PAD_R, PH = H - PAD_T - PAD_B;
+
+    // วาดกรอบ + แกน + สเกลของกราฟเส้น
+    function drawAxes(ctx, yMax, yLabel, totalEpochs) {
+      ctx.fillStyle = '#12131c';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 5; i++) {
+        const y = PAD_T + (i / 5) * PH;
+        ctx.strokeStyle = '#212233';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(PAD_L, y);
+        ctx.lineTo(PAD_L + PW, y);
+        ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText((yMax * (1 - i / 5)).toFixed(2), PAD_L - 8, y + 3);
+      }
+
+      ctx.textAlign = 'center';
+      for (let i = 0; i <= 4; i++) {
+        const x = PAD_L + (i / 4) * PW;
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(Math.round((i / 4) * totalEpochs), x, H - PAD_B + 16);
+      }
+
+      ctx.strokeStyle = '#4b5675';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(PAD_L, PAD_T);
+      ctx.lineTo(PAD_L, PAD_T + PH);
+      ctx.lineTo(PAD_L + PW, PAD_T + PH);
+      ctx.stroke();
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('epoch', PAD_L + PW / 2, H - 6);
+      ctx.save();
+      ctx.translate(12, PAD_T + PH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+    }
+
+    // วาดเส้นข้อมูลลงบนพื้นที่กราฟ
+    function drawSeries(ctx, history, yMax, totalEpochs, color) {
+      if (!history || !history.length) return;
+      ctx.beginPath();
+      history.forEach((v, i) => {
+        const x = PAD_L + (i / Math.max(totalEpochs - 1, 1)) * PW;
+        const y = PAD_T + PH - Math.min(v / yMax, 1) * PH;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      });
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      const last = history.length - 1;
+      const lx = PAD_L + (last / Math.max(totalEpochs - 1, 1)) * PW;
+      const ly = PAD_T + PH - Math.min(history[last] / yMax, 1) * PH;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 3.5, 0, 6.283);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(history[last].toFixed(4), Math.min(lx + 8, W - 60), Math.max(ly - 8, 14));
+    }
+
+    function draw(s) {
+      const total = s.total_epochs || 200;
+
+      // 1. Loss curve
+      const lossMax = Math.max(...s.loss_history, 0.1) * 1.1;
+      drawAxes(ctxL, lossMax, 'loss', total);
+      drawSeries(ctxL, s.loss_history, lossMax, total, '#fbbf24');
+
+      // 2. Accuracy curve (0..1)
+      drawAxes(ctxA, 1.0, 'accuracy', total);
+      drawSeries(ctxA, s.acc_history, 1.0, total, '#4ade80');
+
+      // 3. สถานะการเทรน
+      let text = `epoch ${s.epoch}/${total} | loss ${s.loss} | test acc ${(s.acc * 100).toFixed(2)}%`;
+      if (s.saved) text += ` | saved: ${s.saved_file}`;
+      document.getElementById('info').textContent = text;
+
+      // 4. โครงสร้าง model แบบ print(model)
+      const archDiv = document.getElementById('arch');
+      if (s.arch && archDiv.style.display === 'none') {
+        archDiv.style.display = 'block';
+        archDiv.textContent =
+          `print(model)\n${s.arch}\n\nTotal Parameters: ${s.n_params}\n` +
+          `Train samples: ${s.n_train} | Test samples: ${s.n_test}`;
+      }
+
+      // 5. ทดสอบโหลด weights กลับมาใช้งานผ่าน state_dict()
+      if (s.saved && s.inference && s.inference.length) {
+        const infDiv = document.getElementById('inference');
+        infDiv.style.display = 'block';
+        let html = '<b style="color:#e2e8f0;">[Inference Test: load_state_dict("breast_cancer_mlp.pth")]</b><br><br>';
+        for (const item of s.inference) {
+          const status = item.correct
+            ? '<span style="color:#4ade80;">[CORRECT]</span>'
+            : '<span style="color:#f87171;">[WRONG]</span>';
+          html += `Sample ${item.sample}: True=${item.true_label} | Pred=${item.pred_label} (Prob=${(item.pred_prob * 100).toFixed(1)}%) ${status}<br>`;
+        }
+        infDiv.innerHTML = html;
+      }
+    }
+
+    // EventSource = browser API สำหรับรับ SSE stream
+    const es = new EventSource('/api/train_mlp');
+    es.onmessage = (e) => draw(JSON.parse(e.data));
+    es.onerror = () => es.close();  // จบ stream → ปิด
+  </script>
+</body>
+
+</html>

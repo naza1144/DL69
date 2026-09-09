@@ -1174,6 +1174,6 @@ requires-dist = [
     { name = "django", specifier = ">=6.1" },
     { name = "ipython", specifier = ">=9.16.1" },
     { name = "matplotlib", specifier = ">=3.11.1" },
-    { name = "scikit-learn", specifier = ">=1.9.0" },
+    { name = "scikit-learn", specifier = ">=1.7.0" },
     { name = "torch", specifier = ">=2.13.0" },
 ]
