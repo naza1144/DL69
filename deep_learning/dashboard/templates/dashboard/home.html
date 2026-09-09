@@ -1,0 +1,99 @@
+<html>
+  <head>
+    <title>wk10 — MLP XOR live</title>
+    <style>
+      body { font-family: sans-serif; background: #0f0f1e; color: #e5e7eb; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; }
+      canvas { border: 1px solid #333; background: #1a1a2e; }
+      #info { font-size: 14px; color: #9ca3af; }
+      a { color: #60a5fa; }
+    </style>
+  </head>
+  <body>
+    <h2>wk10 — MLP on XOR (MLP 2→8→1)</h2>
+    <canvas id="cv" width="400" height="400"></canvas>
+    <div id="info">connecting…</div>
+    <p><a href="/training/">→ dataset builder (perceptron) + live training</a> &nbsp;|&nbsp; <a href="/predict/mlp/">→ predict with saved MLP</a> &nbsp;|&nbsp; <a href="/train/">/train/</a></p>
+    <script>
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d');
+    const CX = 200, S = 60;
+
+    // XOR points
+    const pts = [{x:0,y:0,l:0},{x:0,y:1,l:1},{x:1,y:0,l:1},{x:1,y:1,l:0}];
+
+    function mlpPredict(x,y,w1,b1,w2,b2){
+      const hidden = [];
+      for(let i=0;i<8;i++){
+        const v = w1[i][0]*x + w1[i][1]*y + b1[i];
+        hidden[i] = v > 0 ? v : 0;
+      }
+      let out = b2;
+      for(let i=0;i<8;i++) out += w2[0][i] * hidden[i];
+      return 1 / (1 + Math.exp(-out));
+    }
+
+    function drawAxes(){
+      ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(0, CX); ctx.lineTo(400, CX); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX, 400); ctx.stroke();
+      ctx.fillStyle='#9ca3af';
+      ctx.beginPath(); ctx.moveTo(400, CX); ctx.lineTo(392, CX-4); ctx.lineTo(392, CX+4); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX-4, 8); ctx.lineTo(CX+4, 8); ctx.closePath(); ctx.fill();
+    }
+
+    function drawHeatmap(w1,b1,w2,b2){
+      const step = 5;
+      for(let px=0; px<400; px+=step){
+        for(let py=0; py<400; py+=step){
+          const x = (px - CX) / S;
+          const y = (CX - py) / S;
+          const p = mlpPredict(x,y,w1,b1,w2,b2);
+          // red (0) -> green (1), low alpha
+          const r = Math.round(248 - p* (248-74));
+          const g = Math.round(113 + p* (222-113));
+          const b = Math.round(113 - p* (113-128));
+          // blend with background #1a1a2e via alpha 0.35
+          const a = 0.35;
+          // simple heat: interpolate between redish and greenish
+          // use p to lerp
+          const cr = p > 0.5 ? 74 : 248;
+          const cg = p > 0.5 ? 222 : 113;
+          const cb = p > 0.5 ? 128 : 113;
+          ctx.fillStyle = `rgba(${cr},${cg},${cb},${0.18 + p*0.18})`;
+          ctx.fillRect(px, py, step, step);
+        }
+      }
+    }
+
+    function draw(s){
+      ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,400,400);
+      if(s.w1 && s.b1){
+        drawHeatmap(s.w1, s.b1, s.w2, s.b2);
+      }
+      drawAxes();
+      for(const p of pts){
+        ctx.beginPath();
+        ctx.arc(CX+p.x*S, CX-p.y*S, 6, 0, 6.283);
+        ctx.fillStyle=p.l?'#4ade80':'#f87171'; ctx.fill();
+        ctx.strokeStyle='#e5e7eb'; ctx.lineWidth=1; ctx.stroke();
+      }
+      if(s.pred){
+        ctx.fillStyle='#e5e7eb'; ctx.font='11px monospace'; ctx.textAlign='center';
+        for(let i=0;i<pts.length;i++){
+          const p = pts[i];
+          ctx.fillText(s.pred[i].toFixed(2), CX+p.x*S, CX-p.y*S - 12);
+        }
+      }
+      document.getElementById('info').textContent=
+        `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc*100).toFixed(0)}%` + (s.pred ? ` | pred [${s.pred.map(v=>v.toFixed(2)).join(', ')}]` : '');
+    }
+
+    // initial empty draw
+    draw({epoch:0, loss:0, acc:0, pred:[0,0,0,0]});
+    // Stream training: GET /api/train defaults to XOR MLP 2→8→1, Adam lr 0.05, 201 epochs
+    const es = new EventSource('/api/train');
+    es.onmessage = (e) => draw(JSON.parse(e.data));
+    es.onerror   = () => es.close();
+    </script>
+  </body>
+</html>

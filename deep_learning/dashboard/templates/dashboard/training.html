@@ -1,0 +1,438 @@
+<html>
+  <head>
+    <title>Training — perceptron dataset + MLP live</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.0/dist/cdn.min.js"></script>
+    <style>
+      body { font-family: sans-serif; background: #0f0f1e; color: #e5e7eb; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; }
+      canvas { border: 1px solid #333; background: #1a1a2e; }
+      .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; justify-content: center; }
+      .param-group { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+      .param { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #9ca3af; }
+      .param input { width: 80px; padding: 6px 8px; border-radius: 6px; border: 1px solid #374151; background: #1f2937; color: #e5e7eb; }
+      .param input#numPoints { width: 90px; }
+      button { padding: 8px 16px; cursor: pointer; border: none; border-radius: 6px; background: #4ade80; color: #111; font-weight: 600; }
+      button:hover { background: #22c55e; }
+      button.secondary { background: #374151; color: #e5e7eb; }
+      button.secondary:hover { background: #4b5563; }
+      #arrowBtn { width:48px; height:48px; border-radius:50%; background:#fbbf24; color:#111; font-size:22px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+      #arrowBtn:hover { background:#f59e0b; }
+      #arrowBtn:disabled { opacity:0.45; cursor:not-allowed; }
+      .canvas-row { display:flex; gap:16px; align-items:center; justify-content:center; flex-wrap:wrap; }
+      .canvas-col { display:flex; flex-direction:column; align-items:center; gap:6px; }
+      .canvas-label { font-size:12px; color:#9ca3af; letter-spacing:0.4px; }
+      #info { font-size: 14px; color: #9ca3af; }
+      #boundaryInfo { font-size: 12px; color: #fbbf24; }
+      #trainInfo { font-size: 13px; color: #60a5fa; min-height:18px; text-align:center; }
+      a { color: #60a5fa; }
+    </style>
+  </head>
+  <body>
+    <div x-data="trainingApp()" x-init="init()" style="display:flex; flex-direction:column; align-items:center; gap:16px; width:100%; max-width:1100px;">
+      <h2>wk10 — dataset x₀·x₁ <span x-text="op"></span> 0 (left) + MLP live training (right)</h2>
+      <p style="font-size:13px;color:#9ca3af;max-width:780px;text-align:center;">Left: generate <code>X[:,0]*X[:,1] <span x-text="op"></span> 0</code> (<span x-text="op==='>' ? 'I & III = green, II & IV = red' : 'II & IV = green, I & III = red'"></span>) — non-linearly separable. Use selector <code>></code>/<code><</code> to swap colors (inverts labels). Right: train MLP <code>Linear(2,8)→ReLU→Linear(8,1)→Sigmoid</code> (<code>BCELoss</code> + <code>Adam lr=0.05</code>) via SSE. <button @click="useXOR()" class="secondary" style="padding:4px 8px;font-size:12px;">XOR preset</button></p>
+
+      <div style="display:flex; gap:20px; align-items:flex-start; justify-content:center; flex-wrap:wrap; width:100%;">
+        <!-- LEFT: product dataset controls + canvas -->
+        <div id="leftPanel" style="display:flex; flex-direction:column; align-items:center; gap:12px; flex:1; min-width:380px; max-width:500px; background:#15152a; border:1px solid #2a2a4a; border-radius:10px; padding:16px;">
+          <div class="controls">
+            <div class="param-group">
+              <label class="param">Points<input id="numPoints" type="number" x-model.number="n" min="10" max="1000" step="10"></label>
+              <label class="param">Label rule
+                <select x-model="op" @change="swapOp()" style="width:110px; padding:6px 8px; border-radius:6px; border:1px solid #374151; background:#1f2937; color:#e5e7eb;">
+                  <option value=">">x·y > 0 (green if >)</option>
+                  <option value="<">x·y < 0 (green if <)</option>
+                </select>
+              </label>
+            </div>
+            <div class="param-group">
+              <label class="param">Center X<input type="number" x-model.number="cx" step="0.25" style="width:70px"></label>
+              <label class="param">Center Y<input type="number" x-model.number="cy" step="0.25" style="width:70px"></label>
+              <label class="param">Rotate°<input type="number" x-model.number="angle" step="15" style="width:70px"></label>
+            </div>
+            <button @click="generate()">Random points</button>
+            <button class="secondary" @click="clear()">Clear</button>
+          </div>
+          <div class="canvas-col">
+            <div class="canvas-label">Dataset x₀·x₁ <span x-text="op"></span> 0 (left)</div>
+            <canvas x-ref="cv" width="400" height="400"></canvas>
+          </div>
+          <div id="info" x-text="info">Click "Random points" to generate</div>
+          <div id="boundaryInfo" x-text="boundaryLabel"></div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+            <button id="showPointsBtn" @click="showPoints = !showPoints" x-text="showPoints ? 'Hide points' : 'Show all points'" :disabled="pts.length===0" :style="pts.length===0 ? 'opacity:0.5;cursor:not-allowed' : ''">Show all points</button>
+          </div>
+          <div id="pointsDiv" x-show="showPoints" x-transition style="width:100%;">
+            <div style="font-family:monospace; font-size:12px; background:#1f2937; border:1px solid #374151; padding:10px; border-radius:6px; max-height:260px; overflow:auto; white-space:pre; word-break:break-all;">
+              <template x-if="pts.length===0"><div>No points yet — click "Random points"</div></template>
+              <template x-if="pts.length>0">
+                <div>
+                  <div>X = [</div>
+                  <template x-for="(p,i) in pts" :key="i">
+                    <div style="display:flex; gap:10px; padding-left:8px;">
+                      <span style="color:#6b7280; min-width:36px; text-align:right;" x-text="String(i).padStart(3)"></span>
+                      <span x-text="`(${p.x.toFixed(4)}, ${p.y.toFixed(4)}, ${p.l})` + (i < pts.length - 1 ? ',' : '')"></span>
+                    </div>
+                  </template>
+                  <div>]</div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <button id="arrowBtn" @click="startTraining()" :disabled="pts.length===0 && !trainRunning" :title="pts.length===0 ? 'Generate points first' : 'Start live training →' " style="align-self:center;">&rarr;</button>
+
+        <!-- RIGHT: live MLP training -->
+        <div id="rightPanel" style="display:flex; flex-direction:column; align-items:center; gap:12px; flex:1; min-width:380px; max-width:500px; background:#15152a; border:1px solid #2a2a4a; border-radius:10px; padding:16px;">
+          <div class="controls" style="visibility:hidden; pointer-events:none;" aria-hidden="true">
+            <div class="param-group">
+              <label class="param">Points<input type="number" value="200"></label>
+              <label class="param">Label rule<select style="width:110px;"><option>x·y > 0</option></select></label>
+            </div>
+            <div class="param-group">
+              <label class="param">Center X<input type="number" value="0" style="width:70px"></label>
+              <label class="param">Center Y<input type="number" value="0" style="width:70px"></label>
+              <label class="param">Rotate°<input type="number" value="0" style="width:70px"></label>
+            </div>
+            <button>Random points</button>
+            <button class="secondary">Clear</button>
+          </div>
+          <div class="canvas-col" style="margin-top:-2px;">
+            <div class="canvas-label">Live training — MLP decision heatmap</div>
+            <canvas x-ref="cvTrain" width="400" height="400"></canvas>
+          </div>
+          <div id="trainInfo" x-text="trainInfo"></div>
+          <div x-show="lastPred && pts.length===4" style="font-size:11px;color:#9ca3af;font-family:monospace;text-align:center;">
+            <div x-text="lastPred ? `pred: [${lastPred.map(v=>v.toFixed(2)).join(', ')}]` : ''"></div>
+          </div>
+        </div>
+      </div>
+
+      <p><a href="/">← back to XOR live (home)</a> &nbsp;|&nbsp; <a href="/predict/mlp/">→ predict with saved MLP</a></p>
+    </div>
+
+    <script>
+    function trainingApp(){
+      return {
+        n: 200,
+        op: '>',
+        cx: 0,
+        cy: 0,
+        angle: 0,
+        pts: [],
+        info: 'Click "Random points" to generate x₀·x₁ > 0 dataset',
+        boundaryLabel: 'boundary: x·y = 0 (axes)',
+        trainInfo: 'Live training: click → to start',
+        showPoints: false,
+        trainRunning: false,
+        es: null,
+        abortController: null,
+        CX: 200,
+        S: 60,
+        lastPred: null,
+
+        randn(){
+          let u=0,v=0;
+          while(!u) u=Math.random();
+          v=Math.random();
+          return Math.sqrt(-2*Math.log(u))*Math.cos(6.283*v);
+        },
+
+        init(){
+          this.draw();
+          this.drawTrainEmpty();
+          this.$watch('cx', () => this.draw());
+          this.$watch('cy', () => this.draw());
+          this.$watch('angle', () => this.draw());
+          this.$nextTick(() => {
+            const spacer = document.querySelector('#rightPanel .controls');
+            const arrow = document.getElementById('arrowBtn');
+            if(spacer && arrow){
+              const spacerH = spacer.offsetHeight || 56;
+              const canvasTop = 16 + spacerH + 12 + 6 + 12;
+              const canvasMid = canvasTop + 200;
+              arrow.style.alignSelf = 'flex-start';
+              arrow.style.marginTop = (canvasMid - 24) + 'px';
+            }
+          });
+        },
+
+        useXOR(){
+          this.pts = [{x:0,y:0,l:0},{x:0,y:1,l:1},{x:1,y:0,l:1},{x:1,y:1,l:0}];
+          // apply current op: ">" is normal XOR, "<" is flipped colors
+          if(this.op === '<'){
+            this.pts.forEach(p=> p.l = 1 - p.l);
+          }
+          this.n = 4;
+          this.draw();
+          if(!this.trainRunning) this.drawTrainEmpty();
+        },
+
+        swapOp(){
+          // swap green/red for existing points without regenerating
+          if(this.pts.length){
+            this.pts.forEach(p=> p.l = 1 - p.l);
+          }
+          this.draw();
+          if(!this.trainRunning) this.drawTrainEmpty();
+        },
+
+        generate(){
+          const n = Math.min(1000, Math.max(10, parseInt(this.n,10) || 200));
+          this.n = n;
+          const gt = this.op === '>';
+          const cx = parseFloat(this.cx) || 0;
+          const cy = parseFloat(this.cy) || 0;
+          const rad = (parseFloat(this.angle) || 0) * Math.PI / 180;
+          const cos = Math.cos(rad), sin = Math.sin(rad);
+          this.pts = [];
+          for(let i=0;i<n;i++){
+            const rx=this.randn(), ry=this.randn();
+            // label from local product before rotate/shift
+            const l = (gt ? (rx * ry > 0) : (rx * ry < 0)) ? 1 : 0;
+            // rotate then shift
+            const x = rx*cos - ry*sin + cx;
+            const y = rx*sin + ry*cos + cy;
+            this.pts.push({x,y,l});
+          }
+          this.draw();
+          if(!this.trainRunning) this.drawTrainEmpty();
+        },
+
+        clear(){
+          this.pts = [];
+          this.showPoints = false;
+          this.draw();
+          if(!this.trainRunning) this.drawTrainEmpty();
+        },
+
+        drawAxesOn(ctx){
+          const CX=this.CX;
+          ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(0, CX); ctx.lineTo(400, CX); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX, 400); ctx.stroke();
+          ctx.fillStyle='#9ca3af';
+          ctx.beginPath(); ctx.moveTo(400, CX); ctx.lineTo(392, CX-4); ctx.lineTo(392, CX+4); ctx.closePath(); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX-4, 8); ctx.lineTo(CX+4, 8); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle='#6b7280'; ctx.lineWidth=1;
+          ctx.fillStyle='#9ca3af'; ctx.font='10px sans-serif';
+          ctx.textAlign='center'; ctx.textBaseline='top';
+          for(let i=-3;i<=3;i++) if(i!==0){
+            const px = CX + i*this.S;
+            ctx.beginPath(); ctx.moveTo(px, CX-4); ctx.lineTo(px, CX+4); ctx.stroke();
+            ctx.fillText(String(i), px, CX+6);
+          }
+          ctx.textAlign='left'; ctx.textBaseline='middle';
+          for(let i=-3;i<=3;i++) if(i!==0){
+            const py = CX - i*this.S;
+            ctx.beginPath(); ctx.moveTo(CX-4, py); ctx.lineTo(CX+4, py); ctx.stroke();
+            ctx.fillText(String(i), CX+6, py);
+          }
+          ctx.fillStyle='#d1d5db'; ctx.font='12px sans-serif';
+          ctx.fillText('x', 385, CX-10);
+          ctx.fillText('y', CX+10, 12);
+          ctx.font='10px sans-serif'; ctx.fillText('0', CX+5, CX+6);
+        },
+
+        drawProductBoundary(ctx){
+          const cx = parseFloat(this.cx) || 0;
+          const cy = parseFloat(this.cy) || 0;
+          const rad = (parseFloat(this.angle) || 0) * Math.PI / 180;
+          const cos = Math.cos(rad), sin = Math.sin(rad);
+          const pcx = this.CX + cx * this.S;
+          const pcy = this.CX - cy * this.S;
+          ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+          // line 1: t along rotated x-axis -> direction (cos, sin) in data
+          {
+            const t = 10;
+            const x0 = cx + t * cos, y0 = cy + t * sin;
+            const x1 = cx - t * cos, y1 = cy - t * sin;
+            ctx.beginPath();
+            ctx.moveTo(this.CX + x0*this.S, this.CX - y0*this.S);
+            ctx.lineTo(this.CX + x1*this.S, this.CX - y1*this.S);
+            ctx.stroke();
+          }
+          // line 2: t along rotated y-axis -> direction (-sin, cos)
+          {
+            const t = 10;
+            const x0 = cx + t * (-sin), y0 = cy + t * cos;
+            const x1 = cx - t * (-sin), y1 = cy - t * cos;
+            ctx.beginPath();
+            ctx.moveTo(this.CX + x0*this.S, this.CX - y0*this.S);
+            ctx.lineTo(this.CX + x1*this.S, this.CX - y1*this.S);
+            ctx.stroke();
+          }
+          // keep thin center dot
+          ctx.setLineDash([]);
+          ctx.fillStyle='#fbbf24';
+          ctx.beginPath(); ctx.arc(pcx, pcy, 3, 0, 6.283); ctx.fill();
+          const shift = (cx!==0 || cy!==0) ? ` center=(${cx.toFixed(1)},${cy.toFixed(1)})` : '';
+          const rot = rad!==0 ? ` rot=${this.angle}°` : '';
+          return `x·y = 0${shift}${rot}`;
+        },
+
+        mlpPredict(x,y,w1,b1,w2,b2){
+          const hidden = new Array(8);
+          for(let i=0;i<8;i++){
+            const v = w1[i][0]*x + w1[i][1]*y + b1[i];
+            hidden[i] = v > 0 ? v : 0;
+          }
+          let out = b2;
+          for(let i=0;i<8;i++) out += w2[0][i] * hidden[i];
+          return 1 / (1 + Math.exp(-out));
+        },
+
+        drawHeatmap(ctx, w1,b1,w2,b2){
+          const step = 5;
+          for(let px=0; px<400; px+=step){
+            for(let py=0; py<400; py+=step){
+              const x = (px - this.CX) / this.S;
+              const y = (this.CX - py) / this.S;
+              const p = this.mlpPredict(x,y,w1,b1,w2,b2);
+              // green for p~1, red for p~0
+              const cr = p > 0.5 ? 74 : 248;
+              const cg = p > 0.5 ? 222 : 113;
+              const cb = p > 0.5 ? 128 : 113;
+              ctx.fillStyle = `rgba(${cr},${cg},${cb},${0.16 + Math.abs(p-0.5)*0.32})`;
+              ctx.fillRect(px, py, step, step);
+            }
+          }
+        },
+
+        draw(){
+          const cv = this.$refs.cv;
+          if(!cv) return;
+          const ctx = cv.getContext('2d');
+          ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,400,400);
+          this.drawAxesOn(ctx);
+          const rule = `x·y ${this.op} 0`;
+          const label = this.drawProductBoundary(ctx);
+          this.boundaryLabel = `true boundary: ${label} —  ${rule}`;
+          for(const p of this.pts){
+            ctx.beginPath();
+            ctx.arc(this.CX+p.x*this.S, this.CX-p.y*this.S, 3, 0, 6.283);
+            ctx.fillStyle=p.l?'#4ade80':'#f87171'; ctx.fill();
+          }
+          if(this.pts.length){
+            const n1 = this.pts.filter(p=>p.l===1).length;
+            const n0 = this.pts.length - n1;
+            this.info = `${this.pts.length} points — green:${n1} red:${n0}  (rule: ${rule})`;
+          } else {
+            this.info = 'Click "Random points" or "XOR preset"';
+          }
+        },
+
+        drawTrainEmpty(){
+          const cv = this.$refs.cvTrain;
+          if(!cv) return;
+          const ctx = cv.getContext('2d');
+          ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,400,400);
+          this.drawAxesOn(ctx);
+          if(this.pts.length){
+            for(const p of this.pts){
+              ctx.beginPath();
+              ctx.arc(this.CX+p.x*this.S, this.CX-p.y*this.S, 3, 0, 6.283);
+              ctx.fillStyle=p.l?'#4ade80':'#f87171'; ctx.fill();
+            }
+          } else {
+            ctx.fillStyle='#6b7280'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+            ctx.fillText('click → to start', 200, 200);
+          }
+        },
+
+        drawTrain(s){
+          const cv = this.$refs.cvTrain;
+          if(!cv) return;
+          const ctx = cv.getContext('2d');
+          ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,400,400);
+          // heatmap from MLP weights (primary viz for wk10)
+          if(s.w1 && s.b1 && s.w2 !== undefined){
+            this.drawHeatmap(ctx, s.w1, s.b1, s.w2, s.b2);
+          }
+          this.drawAxesOn(ctx);
+          let trainPts = this.pts;
+          if(trainPts.length===0){
+            trainPts = [];
+            const gt = this.op === '>';
+            const cx = parseFloat(this.cx) || 0;
+            const cy = parseFloat(this.cy) || 0;
+            const rad = (parseFloat(this.angle) || 0) * Math.PI / 180;
+            const cos = Math.cos(rad), sin = Math.sin(rad);
+            for(let i=0;i<200;i++){
+              const rx=this.randn(), ry=this.randn();
+              const l = (gt ? rx*ry>0 : rx*ry<0) ? 1 : 0;
+              const x = rx*cos - ry*sin + cx;
+              const y = rx*sin + ry*cos + cy;
+              trainPts.push({x,y,l});
+            }
+          }
+          for(const p of trainPts){
+            ctx.beginPath();
+            ctx.arc(this.CX+p.x*this.S, this.CX-p.y*this.S, 3, 0, 6.283);
+            ctx.fillStyle=p.l?'#4ade80':'#f87171'; ctx.fill();
+          }
+          // keep perceptron line for reference if user hid heatmap? prefer heatmap only
+          this.trainInfo = `epoch ${s.epoch} | loss ${s.loss} | acc ${(s.acc*100).toFixed(0)}%`;
+          if(s.pred && s.pred.length <= 8){
+            this.lastPred = s.pred;
+          } else {
+            this.lastPred = null;
+          }
+        },
+
+        startTraining(){
+          if(this.abortController){ try{this.abortController.abort();}catch(e){} this.abortController=null; }
+          if(this.es){ try{this.es.close();}catch(e){} this.es=null; }
+          this.trainRunning = true;
+          this.trainInfo = 'training…';
+          this.lastPred = null;
+          const payload = {
+            pts: this.pts,
+            op: this.op,
+            label_rule: this.op,
+            cx: parseFloat(this.cx) || 0,
+            cy: parseFloat(this.cy) || 0,
+            center_x: parseFloat(this.cx) || 0,
+            center_y: parseFloat(this.cy) || 0,
+            angle: parseFloat(this.angle) || 0,
+            rotation: parseFloat(this.angle) || 0,
+          };
+          const controller = new AbortController();
+          this.abortController = controller;
+          fetch('/api/train', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          }).then(response => {
+            if(!response.ok) throw new Error('train failed '+response.status);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const pump = () => reader.read().then(({done, value}) => {
+              if(done){ this.trainRunning=false; this.abortController=null; return; }
+              buffer += decoder.decode(value, {stream:true});
+              let parts = buffer.split('\n\n');
+              buffer = parts.pop();
+              for(const part of parts){
+                const trimmed = part.trim();
+                if(trimmed.startsWith('data: ')){
+                  const s = JSON.parse(trimmed.slice(6));
+                  this.drawTrain(s);
+                  if(s.epoch>=200){ try{reader.cancel();}catch(e){} this.trainRunning=false; this.abortController=null; return; }
+                }
+              }
+              return pump();
+            });
+            return pump();
+          }).catch(e => {
+            if(e.name === 'AbortError') return;
+            this.trainRunning=false; this.abortController=null;
+            this.trainInfo += ' — error';
+          });
+        }
+      }
+    }
+    </script>
+  </body>
+</html>

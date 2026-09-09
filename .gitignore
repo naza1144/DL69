@@ -40,3 +40,6 @@ Thumbs.db
 # Database
 *.sqlite3
 db.sqlite3
+
+saved_models/
+
