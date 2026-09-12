@@ -3,24 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deep Learning Timeseries Dashboard - Jena Climate</title>
+    <title>Jena Climate Laboratory — Recurrent Neural Observational Telemetry</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-primary: #0a0e17;
-            --bg-card: rgba(18, 24, 38, 0.85);
-            --bg-card-hover: rgba(28, 36, 56, 0.95);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --accent-blue: #3b82f6;
-            --accent-cyan: #06b6d4;
-            --accent-green: #10b981;
-            --accent-amber: #f59e0b;
-            --accent-rose: #f43f5e;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            /* Palette: European Meteorological Observatory */
+            --bg-canvas: #0c1017;
+            --bg-surface: #141b24;
+            --bg-surface-elevated: #1b2432;
+            --bg-surface-sunken: #090d13;
+            
+            --border-subtle: #232e3d;
+            --border-strong: #334358;
+            --border-focus: #0284c7;
+
+            --ink-headline: #f8fafc;
+            --ink-primary: #e2e8f0;
+            --ink-muted: #8493a8;
+            --ink-faint: #475569;
+
+            --telemetry-cyan: #0284c7;
+            --telemetry-amber: #d97706;
+            --telemetry-emerald: #059669;
+            --telemetry-crimson: #e11d48;
+            --telemetry-blue: #2563eb;
+            
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-body: 'IBM Plex Sans', 'Prompt', sans-serif;
+            --font-mono: 'IBM Plex Mono', monospace;
         }
 
         * {
@@ -30,516 +43,758 @@
         }
 
         body {
-            font-family: 'Outfit', 'Prompt', sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-main);
+            font-family: var(--font-body);
+            background-color: var(--bg-canvas);
+            color: var(--ink-primary);
             min-height: 100vh;
-            background-image: 
-                radial-gradient(circle at 15% 15%, rgba(6, 182, 212, 0.12) 0%, transparent 40%),
-                radial-gradient(circle at 85% 85%, rgba(59, 130, 246, 0.12) 0%, transparent 40%);
             padding: 24px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
-            max-width: 1440px;
+            max-width: 1480px;
             margin: 0 auto;
         }
 
-        /* Header */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        /* Station Telemetry Masthead (Signature Element) */
+        .masthead {
+            border: 1px solid var(--border-subtle);
+            background-color: var(--bg-surface);
+            padding: 18px 24px;
             margin-bottom: 24px;
-            flex-wrap: wrap;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 24px;
         }
 
-        .header-title h1 {
-            font-size: 1.85rem;
+        .masthead-brand {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border-right: 1px solid var(--border-subtle);
+            padding-right: 24px;
+        }
+
+        .station-code {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--telemetry-cyan);
+            font-weight: 600;
+        }
+
+        .station-title {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--ink-headline);
+            letter-spacing: -0.3px;
+        }
+
+        .masthead-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px 32px;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--ink-muted);
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-label {
+            font-size: 0.68rem;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: var(--ink-faint);
+        }
+
+        .meta-value {
+            color: var(--ink-primary);
+            font-weight: 500;
+        }
+
+        .masthead-status {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 16px;
+            border-left: 1px solid var(--border-subtle);
+            padding-left: 24px;
         }
 
-        .header-title p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-            margin-top: 4px;
-        }
-
-        .header-badges {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .badge {
+        .status-pill {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 14px;
-            border-radius: 9999px;
-            font-size: 0.8rem;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--bg-surface-sunken);
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
             font-weight: 600;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
             letter-spacing: 0.5px;
         }
 
-        .badge-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-muted);
-        }
-        .badge-dot.active {
-            background: var(--accent-green);
-            box-shadow: 0 0 8px var(--accent-green);
-            animation: pulse 2s infinite;
+        .status-indicator {
+            width: 7px;
+            height: 7px;
+            border-radius: 1px;
+            background: var(--ink-faint);
         }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.3); opacity: 0.7; }
+        .status-indicator.active {
+            background: var(--telemetry-emerald);
+            box-shadow: 0 0 6px rgba(5, 150, 105, 0.6);
         }
 
-        /* Layout Grid */
-        .dashboard-grid {
+        /* Main Workspace Grid */
+        .workspace-grid {
             display: grid;
             grid-template-columns: 340px 1fr;
             gap: 24px;
         }
 
-        @media (max-width: 1024px) {
-            .dashboard-grid {
+        @media (max-width: 1120px) {
+            .workspace-grid {
                 grid-template-columns: 1fr;
+            }
+            .masthead {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .masthead-brand {
+                border-right: none;
+                padding-right: 0;
+            }
+            .masthead-status {
+                border-left: none;
+                padding-left: 0;
             }
         }
 
-        /* Controls Section */
-        .controls-col {
+        /* Scientific Instrument Panels */
+        .instrument-panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-surface-elevated);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panel-caption {
+            font-family: var(--font-display);
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: var(--ink-headline);
+        }
+
+        .panel-tag {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--ink-muted);
+            background: var(--bg-surface-sunken);
+            padding: 2px 6px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .panel-body {
+            padding: 20px 18px;
             display: flex;
             flex-direction: column;
             gap: 20px;
         }
 
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #e2e8f0;
-            margin-bottom: 16px;
+        /* Controls: Mechanical Switchplate & Steppers */
+        .field-group {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            flex-direction: column;
+            gap: 6px;
         }
 
-        .control-group {
-            margin-bottom: 16px;
+        .field-label {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--ink-muted);
+            display: flex;
+            justify-content: space-between;
         }
 
-        .control-group label {
-            display: block;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--text-muted);
-            margin-bottom: 8px;
+        .field-sublabel {
+            font-family: var(--font-body);
+            font-size: 0.7rem;
+            color: var(--ink-faint);
         }
 
-        .model-selector {
+        /* Topology Switchplate */
+        .switchplate {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 4px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-strong);
+            background: var(--bg-surface-sunken);
+            padding: 3px;
+            gap: 2px;
         }
 
-        .model-btn {
+        .switch-btn {
             background: transparent;
             border: none;
-            color: var(--text-muted);
-            padding: 8px 12px;
-            font-family: inherit;
-            font-size: 0.9rem;
+            color: var(--ink-muted);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
             font-weight: 600;
-            border-radius: 8px;
+            padding: 8px 4px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background 0.15s ease, color 0.15s ease;
+            text-align: center;
         }
 
-        .model-btn.active {
-            background: linear-gradient(135deg, #2563eb, #3b82f6);
-            color: #fff;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        .switch-btn:hover:not(.active) {
+            color: var(--ink-headline);
+            background: rgba(255, 255, 255, 0.03);
         }
 
-        .input-field {
+        .switch-btn.active {
+            background: var(--border-strong);
+            color: var(--ink-headline);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .input-stepper {
             width: 100%;
-            background: rgba(0, 0, 0, 0.35);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 10px 14px;
-            color: #fff;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.95rem;
-            transition: border-color 0.2s;
+            background: var(--bg-surface-sunken);
+            border: 1px solid var(--border-strong);
+            padding: 9px 12px;
+            color: var(--ink-headline);
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            transition: border-color 0.15s ease;
         }
-        .input-field:focus {
+
+        .input-stepper:focus {
             outline: none;
-            border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+            border-color: var(--border-focus);
         }
 
-        .btn-train {
-            width: 100%;
-            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            padding: 14px 20px;
-            font-size: 1rem;
+        .input-stepper:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            background: #080b0f;
+        }
+
+        /* Hardware Dispatch Button */
+        .action-tray {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .btn-dispatch {
+            background: #0284c7;
+            color: #ffffff;
+            border: 1px solid #0369a1;
+            font-family: var(--font-display);
+            font-size: 0.86rem;
             font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 12px 16px;
             cursor: pointer;
+            transition: background 0.15s ease, transform 0.1s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            box-shadow: 0 8px 20px -4px rgba(16, 185, 129, 0.5);
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-        .btn-train:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 24px -4px rgba(16, 185, 129, 0.6);
-        }
-        .btn-train:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
+            gap: 8px;
         }
 
-        .btn-stop {
-            width: 100%;
-            background: rgba(244, 63, 94, 0.15);
-            color: var(--accent-rose);
-            border: 1px solid rgba(244, 63, 94, 0.3);
-            border-radius: 12px;
-            padding: 10px 16px;
-            font-size: 0.9rem;
-            font-weight: 600;
+        .btn-dispatch:hover:not(:disabled) {
+            background: #0369a1;
+        }
+
+        .btn-dispatch:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .btn-dispatch:disabled {
+            background: #1e293b;
+            color: #64748b;
+            border-color: #334155;
+            cursor: not-allowed;
+        }
+
+        .btn-abort {
+            background: transparent;
+            color: var(--telemetry-crimson);
+            border: 1px solid rgba(225, 29, 72, 0.35);
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 8px 12px;
             cursor: pointer;
-            margin-top: 10px;
-            font-family: inherit;
-            transition: all 0.2s;
+            transition: all 0.15s ease;
         }
-        .btn-stop:hover:not(:disabled) {
-            background: rgba(244, 63, 94, 0.25);
+
+        .btn-abort:hover:not(:disabled) {
+            background: rgba(225, 29, 72, 0.1);
+            border-color: var(--telemetry-crimson);
         }
-        .btn-stop:disabled {
-            opacity: 0.3;
+
+        .btn-abort:disabled {
+            opacity: 0.25;
             cursor: not-allowed;
         }
 
-        /* Stat Cards */
-        .stats-grid {
+        /* Specification Ledger (Clean Academic Requirements) */
+        .spec-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: 0.74rem;
+        }
+
+        .spec-table tr {
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .spec-table tr:last-child {
+            border-bottom: none;
+        }
+
+        .spec-table td {
+            padding: 7px 4px;
+        }
+
+        .spec-table .spec-key {
+            color: var(--ink-muted);
+            width: 45%;
+        }
+
+        .spec-table .spec-val {
+            color: var(--ink-primary);
+            text-align: right;
+            font-weight: 500;
+        }
+
+        /* Telemetry Metric Strip */
+        .telemetry-strip {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-surface);
             margin-bottom: 24px;
         }
-        @media (max-width: 768px) {
-            .stats-grid {
+
+        @media (max-width: 800px) {
+            .telemetry-strip {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
 
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            padding: 16px;
-            position: relative;
-            overflow: hidden;
-        }
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: var(--stat-accent, #3b82f6);
+        .strip-cell {
+            padding: 16px 20px;
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
-        .stat-label {
-            font-size: 0.78rem;
-            color: var(--text-muted);
+        .strip-cell:last-child {
+            border-right: none;
+        }
+
+        .cell-tag {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            letter-spacing: 1px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
+            color: var(--ink-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
-        .stat-value {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.5rem;
+        .cell-value {
+            font-family: var(--font-mono);
+            font-size: 1.55rem;
             font-weight: 700;
-            color: #fff;
+            color: var(--ink-headline);
+            letter-spacing: -0.5px;
         }
 
-        .progress-bar-container {
+        .cell-progress {
+            height: 3px;
+            background: var(--bg-surface-sunken);
             width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            margin-top: 10px;
+            margin-top: 4px;
             overflow: hidden;
         }
-        .progress-bar-fill {
+
+        .cell-progress-bar {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, #38bdf8, #10b981);
-            transition: width 0.3s ease;
+            background: #0284c7;
+            transition: width 0.2s linear;
         }
 
-        /* Charts */
-        .charts-container {
+        /* Charts Deck */
+        .chart-stack {
             display: flex;
             flex-direction: column;
             gap: 24px;
         }
 
-        .chart-box {
-            position: relative;
-            height: 320px;
-            width: 100%;
+        .chart-frame {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
         }
 
-        /* Terminal Console */
-        .terminal-panel {
+        .chart-toolbar {
+            padding: 10px 18px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-surface-elevated);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-legend-indicator {
+            display: flex;
+            gap: 16px;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--ink-muted);
+        }
+
+        .legend-mark {
+            display: inline-block;
+            width: 12px;
+            height: 2px;
+            vertical-align: middle;
+            margin-right: 4px;
+        }
+
+        .chart-canvas-wrapper {
+            position: relative;
+            height: 290px;
+            width: 100%;
+            padding: 12px 16px 16px 16px;
+        }
+
+        /* Observatory Log Terminal */
+        .log-terminal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
             margin-top: 24px;
         }
-        .terminal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 12px;
-        }
-        .terminal-dots {
-            display: flex;
-            gap: 6px;
-        }
-        .tdot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-        .tdot-red { background: #ef4444; }
-        .tdot-yellow { background: #f59e0b; }
-        .tdot-green { background: #10b981; }
 
-        .terminal-body {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.82rem;
-            line-height: 1.6;
-            color: #94a3b8;
-            max-height: 180px;
+        .log-viewport {
+            background: var(--bg-surface-sunken);
+            padding: 12px 16px;
+            max-height: 160px;
             overflow-y: auto;
-            background: rgba(0, 0, 0, 0.4);
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .log-entry {
-            margin-bottom: 4px;
-        }
-        .log-time {
-            color: #64748b;
-        }
-        .log-info {
-            color: #38bdf8;
-        }
-        .log-success {
-            color: #34d399;
-        }
-        .log-warning {
-            color: #fbbf24;
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+            color: #94a3b8;
+            line-height: 1.6;
         }
 
-        /* Homework Checklist Card */
-        .checklist {
-            list-style: none;
-            margin-top: 10px;
-        }
-        .checklist li {
-            font-size: 0.82rem;
-            color: #cbd5e1;
-            padding: 6px 0;
+        .log-row {
             display: flex;
-            align-items: center;
-            gap: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            gap: 10px;
+            margin-bottom: 2px;
         }
-        .check-icon {
-            color: #10b981;
-            font-weight: bold;
+
+        .log-ts {
+            color: var(--ink-faint);
+            flex-shrink: 0;
+            user-select: none;
+        }
+
+        .log-channel {
+            color: var(--telemetry-cyan);
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+
+        .log-channel.success { color: var(--telemetry-emerald); }
+        .log-channel.alert { color: var(--telemetry-crimson); }
+        .log-channel.state { color: var(--telemetry-amber); }
+
+        .log-msg {
+            color: var(--ink-primary);
+            word-break: break-all;
+        }
+
+        /* Clean scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-surface-sunken);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-strong);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <header>
-            <div class="header-title">
-                <h1>🌡️ Deep Learning Timeseries Dashboard</h1>
-                <p>สัปดาห์ที่ 11: Jena Climate Temperature Prediction with PyTorch RNN / LSTM / GRU</p>
+        <!-- Station Telemetry Masthead (Signature Element) -->
+        <header class="masthead">
+            <div class="masthead-brand">
+                <span class="station-code">MPI-BGC · OBS-DE50N11E</span>
+                <h1 class="station-title">Jena Atmospheric Telemetry Laboratory</h1>
             </div>
-            <div class="header-badges">
-                <div class="badge">
-                    <span class="badge-dot" id="statusDot"></span>
-                    <span id="statusText">System Ready</span>
+
+            <div class="masthead-meta">
+                <div class="meta-item">
+                    <span class="meta-label">Location / Datum</span>
+                    <span class="meta-value">Jena, Germany (50°55′N, 11°35′E, 377m)</span>
                 </div>
-                <div class="badge">
-                    <span>⚡ Device:</span>
-                    <span style="color: var(--accent-cyan); font-family: 'JetBrains Mono'; font-weight: 700;">{{ device|upper }}</span>
+                <div class="meta-item">
+                    <span class="meta-label">Target Quantity</span>
+                    <span class="meta-value">Surface Air Temp T (°C)</span>
                 </div>
-                <div class="badge">
-                    <span>💾 Model:</span>
-                    <span id="modelStatusBadge" style="color: {% if has_saved_model %}var(--accent-green){% else %}var(--text-muted){% endif %}; font-family: 'JetBrains Mono';">
-                        {% if has_saved_model %}Saved ({{ model_size_kb }} KB){% else %}Not Trained{% endif %}
-                    </span>
+                <div class="meta-item">
+                    <span class="meta-label">Receptive Horizon</span>
+                    <span class="meta-value">60 Steps (Δt = 10 min / 10.0h)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Compute Device</span>
+                    <span class="meta-value" style="color: var(--telemetry-cyan);">{{ device|upper }}</span>
+                </div>
+            </div>
+
+            <div class="masthead-status">
+                <div class="status-pill">
+                    <span class="status-indicator" id="statusDot"></span>
+                    <span id="statusText">STANDBY</span>
                 </div>
             </div>
         </header>
 
-        <!-- Main Dashboard Grid -->
-        <div class="dashboard-grid">
-            <!-- Left Column: Controls & Requirements -->
-            <div class="controls-col">
-                <!-- Training Controls Panel -->
-                <div class="glass-panel">
-                    <div class="section-title">⚙️ Training Parameters</div>
-                    
-                    <div class="control-group">
-                        <label>Architecture (สถาปัตยกรรมโมเดล)</label>
-                        <div class="model-selector">
-                            <button type="button" class="model-btn active" data-model="lstm" onclick="selectModel('lstm')">LSTM</button>
-                            <button type="button" class="model-btn" data-model="rnn" onclick="selectModel('rnn')">RNN</button>
-                            <button type="button" class="model-btn" data-model="gru" onclick="selectModel('gru')">GRU</button>
+        <!-- Main Workspace Grid -->
+        <main class="workspace-grid">
+            <!-- Left Column: Calibration Bay & Parameter Ledger -->
+            <aside class="controls-col" style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Instrument Calibration Console -->
+                <div class="instrument-panel">
+                    <div class="panel-header">
+                        <span class="panel-caption">Hyperparameter Control</span>
+                        <span class="panel-tag">CAL-01</span>
+                    </div>
+
+                    <div class="panel-body">
+                        <!-- Recurrent Architecture -->
+                        <div class="field-group">
+                            <span class="field-label">
+                                Recurrent Topology
+                                <span class="field-sublabel">Sequence Cell</span>
+                            </span>
+                            <div class="switchplate">
+                                <button type="button" class="switch-btn active" data-model="lstm" onclick="selectModel('lstm')">LSTM</button>
+                                <button type="button" class="switch-btn" data-model="rnn" onclick="selectModel('rnn')">RNN</button>
+                                <button type="button" class="switch-btn" data-model="gru" onclick="selectModel('gru')">GRU</button>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="control-group">
-                        <label for="inputEpochs">Epochs (จำนวนรอบเทรน - ข้อกำหนด: 20)</label>
-                        <input type="number" id="inputEpochs" class="input-field" value="20" min="1" max="50">
-                    </div>
-
-                    <div class="control-group">
-                        <label for="inputLr">Learning Rate (Adam - ข้อกำหนด: 0.001)</label>
-                        <input type="number" id="inputLr" class="input-field" value="0.001" step="0.0005" min="0.0001" max="0.05">
-                    </div>
-
-                    <div class="control-group">
-                        <label for="inputLookback">Lookback (ข้อกำหนด: 60 steps / 10 ชม.)</label>
-                        <input type="number" id="inputLookback" class="input-field" value="60" disabled style="opacity: 0.7;">
-                    </div>
-
-                    <button id="btnTrain" class="btn-train" onclick="startTraining()">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                        <span>Start Real-time Training</span>
-                    </button>
-                    <button id="btnStop" class="btn-stop" onclick="stopTraining()" disabled>
-                        <span>⏹️ Stop Training</span>
-                    </button>
-                </div>
-
-                <!-- Homework Requirements Checklist -->
-                <div class="glass-panel">
-                    <div class="section-title">📋 Assignment Checklist</div>
-                    <ul class="checklist">
-                        <li><span class="check-icon">✓</span> 1. ใช้ Jena Climate Dataset</li>
-                        <li><span class="check-icon">✓</span> 2. Lookback = 60 (10 ชั่วโมง)</li>
-                        <li><span class="check-icon">✓</span> 3. LSTM(1, 32, 1) + Linear</li>
-                        <li><span class="check-icon">✓</span> 4. Train 20 epochs, Adam lr=0.001</li>
-                        <li><span class="check-icon">✓</span> 5. แสดงผล MAE และ Plot Real-time</li>
-                        <li><span class="check-icon">✓</span> 6. บันทึก model ด้วย state_dict()</li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Right Column: Stats & Charts -->
-            <div class="content-col">
-                <!-- Live Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card" style="--stat-accent: #38bdf8;">
-                        <div class="stat-label">Current Epoch</div>
-                        <div class="stat-value" id="statEpoch">0 / 20</div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar-fill" id="progressBar"></div>
+                        <!-- Epochs -->
+                        <div class="field-group">
+                            <label for="inputEpochs" class="field-label">
+                                Training Epochs
+                                <span class="field-sublabel">Spec: 20</span>
+                            </label>
+                            <input type="number" id="inputEpochs" class="input-stepper" value="20" min="1" max="50">
                         </div>
-                    </div>
 
-                    <div class="stat-card" style="--stat-accent: #06b6d4;">
-                        <div class="stat-label">Train Loss (MSE)</div>
-                        <div class="stat-value" id="statTrainLoss">--</div>
-                    </div>
+                        <!-- Learning Rate -->
+                        <div class="field-group">
+                            <label for="inputLr" class="field-label">
+                                Learning Rate η (Adam)
+                                <span class="field-sublabel">Spec: 0.001</span>
+                            </label>
+                            <input type="number" id="inputLr" class="input-stepper" value="0.001" step="0.0005" min="0.0001" max="0.05">
+                        </div>
 
-                    <div class="stat-card" style="--stat-accent: #f59e0b;">
-                        <div class="stat-label">Test Loss (MSE)</div>
-                        <div class="stat-value" id="statTestLoss">--</div>
-                    </div>
+                        <!-- Lookback Steps -->
+                        <div class="field-group">
+                            <label for="inputLookback" class="field-label">
+                                Lookback Window
+                                <span class="field-sublabel">Fixed 10-hour</span>
+                            </label>
+                            <input type="text" id="inputLookback" class="input-stepper" value="60 timesteps (10.0 hrs)" disabled>
+                        </div>
 
-                    <div class="stat-card" style="--stat-accent: #10b981;">
-                        <div class="stat-label">Test MAE (°C)</div>
-                        <div class="stat-value" id="statMae" style="color: #34d399;">--</div>
+                        <!-- Execution Actions -->
+                        <div class="action-tray">
+                            <button id="btnTrain" class="btn-dispatch" onclick="startTraining()">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                <span>Execute Training Pass</span>
+                            </button>
+                            <button id="btnStop" class="btn-abort" onclick="stopTraining()" disabled>
+                                <span>Abort Stream</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Charts Container -->
-                <div class="charts-container">
-                    <!-- Loss Curve Chart -->
-                    <div class="glass-panel">
-                        <div class="section-title">📉 Training & Test Loss Curve (Real-time SSE)</div>
-                        <div class="chart-box">
-                            <canvas id="lossChart"></canvas>
+                <!-- Assignment Specification Ledger -->
+                <div class="instrument-panel">
+                    <div class="panel-header">
+                        <span class="panel-caption">Laboratory Requirements</span>
+                        <span class="panel-tag">WK11-SPEC</span>
+                    </div>
+
+                    <div class="panel-body" style="padding-top: 14px; padding-bottom: 14px;">
+                        <table class="spec-table">
+                            <tbody>
+                                <tr>
+                                    <td class="spec-key">Dataset Source</td>
+                                    <td class="spec-val">jena_climate_2009_2016</td>
+                                </tr>
+                                <tr>
+                                    <td class="spec-key">Lookback Steps</td>
+                                    <td class="spec-val">60 (10 Hours History)</td>
+                                </tr>
+                                <tr>
+                                    <td class="spec-key">Model Topology</td>
+                                    <td class="spec-val">LSTM(1, 32, 1) + Linear</td>
+                                </tr>
+                                <tr>
+                                    <td class="spec-key">Optimization</td>
+                                    <td class="spec-val">Adam (η = 1e-3, MSE Loss)</td>
+                                </tr>
+                                <tr>
+                                    <td class="spec-key">Horizon Output</td>
+                                    <td class="spec-val">Step t + 1 Temp (°C)</td>
+                                </tr>
+                                <tr>
+                                    <td class="spec-key">Checkpoint State</td>
+                                    <td class="spec-val" id="modelSpecVal">
+                                        {% if has_saved_model %}SAVED ({{ model_size_kb }} KB){% else %}PENDING{% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Right Column: Observational Telemetry & Waveform Deck -->
+            <section class="content-col">
+                <!-- Integrated Telemetry Metric Strip -->
+                <div class="telemetry-strip">
+                    <div class="strip-cell">
+                        <div class="cell-tag">
+                            <span>Training Progress</span>
+                            <span id="epochBadge">-- / 20</span>
+                        </div>
+                        <div class="cell-value" id="statEpoch">0 / 20</div>
+                        <div class="cell-progress">
+                            <div class="cell-progress-bar" id="progressBar"></div>
                         </div>
                     </div>
 
-                    <!-- Temperature Prediction vs Actual Chart -->
-                    <div class="glass-panel">
-                        <div class="section-title">🌡️ Prediction vs Actual Temperature (°C)</div>
-                        <div class="chart-box">
+                    <div class="strip-cell">
+                        <div class="cell-tag">
+                            <span>Train Objective</span>
+                            <span>MSE</span>
+                        </div>
+                        <div class="cell-value" id="statTrainLoss">--</div>
+                    </div>
+
+                    <div class="strip-cell">
+                        <div class="cell-tag">
+                            <span>Test Objective</span>
+                            <span>MSE</span>
+                        </div>
+                        <div class="cell-value" id="statTestLoss">--</div>
+                    </div>
+
+                    <div class="strip-cell">
+                        <div class="cell-tag">
+                            <span>Prediction Deviation</span>
+                            <span style="color: var(--telemetry-emerald);">MAE</span>
+                        </div>
+                        <div class="cell-value" id="statMae" style="color: var(--ink-headline);">--</div>
+                    </div>
+                </div>
+
+                <!-- Waveform Deck -->
+                <div class="chart-stack">
+                    <!-- Temperature Prediction vs Observation Waveform -->
+                    <div class="chart-frame">
+                        <div class="chart-toolbar">
+                            <span class="panel-caption">Surface Air Temperature Profile: Observation vs Model Projection</span>
+                            <div class="chart-legend-indicator">
+                                <span><span class="legend-mark" style="background: #94a3b8;"></span>Observed (MPI-BGC Ground Truth)</span>
+                                <span><span class="legend-mark" style="background: #0284c7;"></span>Projected (Recurrent Sequence)</span>
+                            </div>
+                        </div>
+                        <div class="chart-canvas-wrapper">
                             <canvas id="predChart"></canvas>
                         </div>
                     </div>
+
+                    <!-- Optimization Loss Convergence Waveform -->
+                    <div class="chart-frame">
+                        <div class="chart-toolbar">
+                            <span class="panel-caption">Optimization Convergence Trajectory</span>
+                            <div class="chart-legend-indicator">
+                                <span><span class="legend-mark" style="background: #0284c7;"></span>Train Loss (MSE)</span>
+                                <span><span class="legend-mark" style="background: #d97706;"></span>Test Loss (MSE)</span>
+                            </div>
+                        </div>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="lossChart"></canvas>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Terminal Log Console -->
-                <div class="glass-panel terminal-panel">
-                    <div class="terminal-header">
-                        <div class="terminal-dots">
-                            <div class="tdot tdot-red"></div>
-                            <div class="tdot tdot-yellow"></div>
-                            <div class="tdot tdot-green"></div>
-                        </div>
-                        <span style="font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono';">Live Server-Sent Events (SSE) Stream</span>
+                <!-- Observatory Event Telemetry Log -->
+                <div class="log-terminal">
+                    <div class="panel-header">
+                        <span class="panel-caption">Telemetry Journal (Event Stream)</span>
+                        <span class="panel-tag" id="logChannelTag">STREAM: IDLE</span>
                     </div>
-                    <div class="terminal-body" id="terminalLog">
-                        <div class="log-entry"><span class="log-time">[Ready]</span> Dashboard initialized. Click "Start Real-time Training" to begin.</div>
+                    <div class="log-viewport" id="terminalLog">
+                        <div class="log-row">
+                            <span class="log-ts">[SYS:INIT]</span>
+                            <span class="log-channel state">[INFO]</span>
+                            <span class="log-msg">Observatory telemetry interface loaded. Receptive field configured to 60 steps (10h).</span>
+                        </div>
                         {% if has_saved_model %}
-                        <div class="log-entry"><span class="log-success">[Model]</span> Existing checkpoint found: lstm_temp_model.pth ({{ model_size_kb }} KB, {{ model_modified }})</div>
+                        <div class="log-row">
+                            <span class="log-ts">[CHECKPOINT]</span>
+                            <span class="log-channel success">[READY]</span>
+                            <span class="log-msg">Active model checkpoint located: lstm_temp_model.pth ({{ model_size_kb }} KB, recorded {{ model_modified }}).</span>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
+        </main>
     </div>
 
     <script>
@@ -549,88 +804,51 @@
         let predChart = null;
 
         function selectModel(type) {
-            if (eventSource) return; // disable changing while training
+            if (eventSource) return;
             currentModel = type;
-            document.querySelectorAll('.model-btn').forEach(b => {
-                b.classList.toggle('active', b.dataset.model === type);
+            document.querySelectorAll('.switch-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.model === type);
             });
-            appendLog('Selected model architecture: ' + type.toUpperCase(), 'info');
+            appendLog(`Model topology selected: ${type.toUpperCase()}`, 'state');
         }
 
-        function appendLog(message, type = 'normal') {
+        function appendLog(message, channel = 'info') {
             const logBox = document.getElementById('terminalLog');
-            const now = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            
-            let typeClass = '';
-            if (type === 'info') typeClass = 'log-info';
-            else if (type === 'success') typeClass = 'log-success';
-            else if (type === 'warning') typeClass = 'log-warning';
+            const now = new Date().toTimeString().split(' ')[0];
+            const row = document.createElement('div');
+            row.className = 'log-row';
 
-            entry.innerHTML = `<span class="log-time">[${now}]</span> <span class="${typeClass}">${message}</span>`;
-            logBox.appendChild(entry);
+            let channelClass = '';
+            let channelLabel = '[DATA]';
+            if (channel === 'state') {
+                channelClass = 'state';
+                channelLabel = '[TOPO]';
+            } else if (channel === 'success') {
+                channelClass = 'success';
+                channelLabel = '[DONE]';
+            } else if (channel === 'alert') {
+                channelClass = 'alert';
+                channelLabel = '[WARN]';
+            }
+
+            row.innerHTML = `<span class="log-ts">[${now}]</span> <span class="log-channel ${channelClass}">${channelLabel}</span> <span class="log-msg">${message}</span>`;
+            logBox.appendChild(row);
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // Initialize Chart.js charts
         function initCharts() {
-            // 1. Loss Chart
-            const ctxLoss = document.getElementById('lossChart').getContext('2d');
-            lossChart = new Chart(ctxLoss, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [
-                        {
-                            label: 'Train Loss (MSE)',
-                            data: [],
-                            borderColor: '#38bdf8',
-                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                            borderWidth: 2.5,
-                            tension: 0.3,
-                            fill: true,
-                            pointRadius: 3,
-                            pointHoverRadius: 6
-                        },
-                        {
-                            label: 'Test Loss (MSE)',
-                            data: [],
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            tension: 0.3,
-                            pointRadius: 3,
-                            pointHoverRadius: 6
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 300 },
-                    plugins: {
-                        legend: {
-                            labels: { color: '#cbd5e1', font: { family: 'Outfit', size: 12 } }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Epoch', color: '#94a3b8' },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            ticks: { color: '#94a3b8' }
-                        },
-                        y: {
-                            title: { display: true, text: 'Loss (MSE)', color: '#94a3b8' },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            ticks: { color: '#94a3b8' }
-                        }
-                    }
-                }
-            });
+            const commonGrid = {
+                color: '#1b2432',
+                tickColor: '#232e3d',
+                borderColor: '#232e3d'
+            };
 
-            // 2. Prediction vs Actual Chart
+            const commonTicks = {
+                color: '#718096',
+                font: { family: 'IBM Plex Mono', size: 10 }
+            };
+
+            // 1. Prediction Chart (Hero Waveform)
             const ctxPred = document.getElementById('predChart').getContext('2d');
             predChart = new Chart(ctxPred, {
                 type: 'line',
@@ -638,45 +856,140 @@
                     labels: [],
                     datasets: [
                         {
-                            label: 'Actual Temperature (°C)',
+                            label: 'Observation (T °C)',
                             data: [],
-                            borderColor: '#3b82f6',
-                            borderWidth: 1.8,
-                            tension: 0.2,
+                            borderColor: '#94a3b8',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1.5,
+                            tension: 0.15,
                             pointRadius: 0,
                             fill: false
                         },
                         {
-                            label: 'Model Prediction (°C)',
+                            label: 'Recurrent Projection (T °C)',
                             data: [],
-                            borderColor: '#f43f5e',
+                            borderColor: '#0284c7',
+                            backgroundColor: 'rgba(2, 132, 199, 0.08)',
                             borderWidth: 2,
                             borderDash: [4, 4],
                             tension: 0.2,
                             pointRadius: 0,
-                            fill: false
+                            fill: true
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: { duration: 200 },
+                    animation: { duration: 150 },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
                     plugins: {
-                        legend: {
-                            labels: { color: '#cbd5e1', font: { family: 'Outfit', size: 12 } }
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0c1017',
+                            borderColor: '#232e3d',
+                            borderWidth: 1,
+                            titleFont: { family: 'IBM Plex Mono', size: 11 },
+                            bodyFont: { family: 'IBM Plex Mono', size: 11 },
+                            titleColor: '#e2e8f0',
+                            bodyColor: '#cbd5e1'
                         }
                     },
                     scales: {
                         x: {
-                            title: { display: true, text: 'Time Steps (10-min interval)', color: '#94a3b8' },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            ticks: { color: '#94a3b8', maxTicksLimit: 12 }
+                            grid: commonGrid,
+                            ticks: { ...commonTicks, maxTicksLimit: 14 },
+                            title: {
+                                display: true,
+                                text: 'TIMESTEP INDEX (Δt = 10 min)',
+                                color: '#475569',
+                                font: { family: 'IBM Plex Mono', size: 9, weight: 600 }
+                            }
                         },
                         y: {
-                            title: { display: true, text: 'Temperature (°C)', color: '#94a3b8' },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            ticks: { color: '#94a3b8' }
+                            grid: commonGrid,
+                            ticks: commonTicks,
+                            title: {
+                                display: true,
+                                text: 'TEMPERATURE (°C)',
+                                color: '#475569',
+                                font: { family: 'IBM Plex Mono', size: 9, weight: 600 }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. Loss Convergence Chart
+            const ctxLoss = document.getElementById('lossChart').getContext('2d');
+            lossChart = new Chart(ctxLoss, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Train MSE',
+                            data: [],
+                            borderColor: '#0284c7',
+                            backgroundColor: 'rgba(2, 132, 199, 0.06)',
+                            borderWidth: 1.8,
+                            tension: 0.2,
+                            pointRadius: 2.5,
+                            pointBackgroundColor: '#0284c7',
+                            fill: true
+                        },
+                        {
+                            label: 'Test MSE',
+                            data: [],
+                            borderColor: '#d97706',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1.5,
+                            borderDash: [5, 4],
+                            tension: 0.2,
+                            pointRadius: 2.5,
+                            pointBackgroundColor: '#d97706'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 150 },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0c1017',
+                            borderColor: '#232e3d',
+                            borderWidth: 1,
+                            titleFont: { family: 'IBM Plex Mono', size: 11 },
+                            bodyFont: { family: 'IBM Plex Mono', size: 11 },
+                            titleColor: '#e2e8f0',
+                            bodyColor: '#cbd5e1'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: commonGrid,
+                            ticks: commonTicks,
+                            title: {
+                                display: true,
+                                text: 'EPOCH INDEX',
+                                color: '#475569',
+                                font: { family: 'IBM Plex Mono', size: 9, weight: 600 }
+                            }
+                        },
+                        y: {
+                            grid: commonGrid,
+                            ticks: commonTicks,
+                            title: {
+                                display: true,
+                                text: 'MEAN SQUARED ERROR (SCALED)',
+                                color: '#475569',
+                                font: { family: 'IBM Plex Mono', size: 9, weight: 600 }
+                            }
                         }
                     }
                 }
@@ -687,7 +1000,7 @@
             const epochs = parseInt(document.getElementById('inputEpochs').value) || 20;
             const lr = parseFloat(document.getElementById('inputLr').value) || 0.001;
 
-            // Reset charts
+            // Reset chart series
             lossChart.data.labels = [];
             lossChart.data.datasets[0].data = [];
             lossChart.data.datasets[1].data = [];
@@ -698,22 +1011,23 @@
             predChart.data.datasets[1].data = [];
             predChart.update();
 
-            // Reset stats
+            // Reset telemetry stats
             document.getElementById('statEpoch').innerText = `0 / ${epochs}`;
+            document.getElementById('epochBadge').innerText = `0 / ${epochs}`;
             document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('statTrainLoss').innerText = '--';
-            document.getElementById('statTestLoss').innerText = '--';
-            document.getElementById('statMae').innerText = '--';
+            document.getElementById('statTrainLoss').innerText = '---';
+            document.getElementById('statTestLoss').innerText = '---';
+            document.getElementById('statMae').innerText = '---';
 
-            // Update UI State
+            // Mechanical UI dispatch state
             document.getElementById('btnTrain').disabled = true;
             document.getElementById('btnStop').disabled = false;
             document.getElementById('statusDot').classList.add('active');
-            document.getElementById('statusText').innerText = `Training ${currentModel.toUpperCase()}...`;
+            document.getElementById('statusText').innerText = `TRAINING (${currentModel.toUpperCase()})`;
+            document.getElementById('logChannelTag').innerText = `STREAM: CONNECTED (${currentModel.toUpperCase()})`;
 
-            appendLog(`Initiating real-time training stream (${currentModel.toUpperCase()}, ${epochs} epochs, lr=${lr})...`, 'info');
+            appendLog(`Initiating sequence optimization stream [Model: ${currentModel.toUpperCase()}, Epochs: ${epochs}, η: ${lr}]`, 'state');
 
-            // Open Server-Sent Events (SSE) connection
             const streamUrl = `/train/stream/?model=${currentModel}&epochs=${epochs}&lr=${lr}`;
             eventSource = new EventSource(streamUrl);
 
@@ -721,20 +1035,19 @@
                 const data = JSON.parse(e.data);
 
                 if (data.type === 'init') {
-                    appendLog(`Dataset ready: ${data.train_samples.toLocaleString()} train / ${data.test_samples.toLocaleString()} test sequences.`, 'info');
-                    // Setup initial actual curve
+                    appendLog(`Dataset verified: ${data.train_samples.toLocaleString()} train seqs, ${data.test_samples.toLocaleString()} test seqs. Device: ${data.device}.`);
                     if (data.preview_actual) {
-                        predChart.data.labels = data.preview_actual.map((_, idx) => idx + 1);
+                        predChart.data.labels = data.preview_actual.map((_, i) => i + 1);
                         predChart.data.datasets[0].data = data.preview_actual;
                         predChart.update();
                     }
                 }
                 else if (data.type === 'log') {
-                    appendLog(data.message, 'normal');
+                    appendLog(data.message);
                 }
                 else if (data.type === 'epoch') {
-                    // Update stats
                     document.getElementById('statEpoch').innerText = `${data.epoch} / ${data.total_epochs}`;
+                    document.getElementById('epochBadge').innerText = `${data.epoch} / ${data.total_epochs}`;
                     const pct = Math.round((data.epoch / data.total_epochs) * 100);
                     document.getElementById('progressBar').style.width = `${pct}%`;
 
@@ -742,45 +1055,42 @@
                     document.getElementById('statTestLoss').innerText = data.test_loss.toFixed(6);
                     document.getElementById('statMae').innerText = `${data.preview_mae.toFixed(2)} °C`;
 
-                    // Update Loss Chart
                     lossChart.data.labels.push(data.epoch);
                     lossChart.data.datasets[0].data.push(data.train_loss);
                     lossChart.data.datasets[1].data.push(data.test_loss);
                     lossChart.update();
 
-                    // Update Prediction Chart live
                     if (data.pred_preview) {
                         predChart.data.datasets[1].data = data.pred_preview;
                         predChart.update();
                     }
 
-                    appendLog(`Epoch [${data.epoch}/${data.total_epochs}] • Train Loss: ${data.train_loss.toFixed(6)} | Test Loss: ${data.test_loss.toFixed(6)} | MAE: ${data.preview_mae.toFixed(2)} °C (${data.epoch_time}s)`);
+                    appendLog(`Epoch [${data.epoch}/${data.total_epochs}] ➔ Train: ${data.train_loss.toFixed(6)} | Test: ${data.test_loss.toFixed(6)} | MAE: ${data.preview_mae.toFixed(2)} °C (${data.epoch_time}s)`);
                 }
                 else if (data.type === 'done') {
                     document.getElementById('statMae').innerText = `${data.final_mae.toFixed(4)} °C`;
-                    appendLog(`Training Completed! Final Full Test MAE: ${data.final_mae.toFixed(4)} °C in ${data.total_time}s`, 'success');
-                    appendLog(`Model state_dict saved to: ${data.model_saved} (${data.model_size_kb} KB)`, 'success');
+                    appendLog(`Optimization converged. Final Full-Test MAE: ${data.final_mae.toFixed(4)} °C in ${data.total_time}s`, 'success');
+                    appendLog(`Checkpoint written to disk: ${data.model_saved} (${data.model_size_kb} KB)`, 'success');
 
-                    // Update full prediction plot
                     if (data.full_actual && data.full_pred) {
-                        predChart.data.labels = data.full_actual.map((_, idx) => idx + 1);
+                        predChart.data.labels = data.full_actual.map((_, i) => i + 1);
                         predChart.data.datasets[0].data = data.full_actual;
                         predChart.data.datasets[1].data = data.full_pred;
                         predChart.update();
                     }
 
-                    document.getElementById('modelStatusBadge').innerText = `Saved (${data.model_size_kb} KB)`;
-                    document.getElementById('modelStatusBadge').style.color = 'var(--accent-green)';
+                    document.getElementById('modelSpecVal').innerText = `SAVED (${data.model_size_kb} KB)`;
+                    document.getElementById('modelSpecVal').style.color = 'var(--telemetry-emerald)';
                     stopTraining(true);
                 }
                 else if (data.type === 'error') {
-                    appendLog(`Error: ${data.message}`, 'warning');
+                    appendLog(`Stream exception: ${data.message}`, 'alert');
                     stopTraining();
                 }
             };
 
-            eventSource.onerror = function(err) {
-                appendLog('SSE stream closed or completed.', 'info');
+            eventSource.onerror = function() {
+                appendLog('Stream transmission closed.', 'state');
                 stopTraining();
             };
         }
@@ -793,7 +1103,8 @@
             document.getElementById('btnTrain').disabled = false;
             document.getElementById('btnStop').disabled = true;
             document.getElementById('statusDot').classList.remove('active');
-            document.getElementById('statusText').innerText = isFinished ? 'Training Completed' : 'System Ready';
+            document.getElementById('statusText').innerText = isFinished ? 'COMPLETED' : 'STANDBY';
+            document.getElementById('logChannelTag').innerText = isFinished ? 'STREAM: CLOSED' : 'STREAM: IDLE';
         }
 
         window.addEventListener('DOMContentLoaded', () => {
